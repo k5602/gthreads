@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+if ! command -v clang-format >/dev/null 2>&1; then
+  echo "[pre-commit] clang-format not found; install it before committing." >&2
+  exit 1
+fi
+
+if [[ -z "$(git diff --cached --name-only --diff-filter=ACMR -- '*.c' '*.h')" ]]; then
+  echo "[pre-commit] No staged C/C header files; skipping format check."
+  exit 0
+fi
+
+echo "[pre-commit] Running clang-format check on staged C/C header files..."
+
+failed=0
+while IFS= read -r file; do
+  [[ -z "$file" ]] && continue
+  if ! diff -u "$file" <(clang-format "$file") >/dev/null; then
+    echo "[pre-commit] Format issue: $file"
+    failed=1
+  fi
+done < <(git diff --cached --name-only --diff-filter=ACMR -- '*.c' '*.h')
+
+if [[ $failed -ne 0 ]]; then
+  echo "[pre-commit] Formatting check failed. Run: cmake --build build --target format" >&2
+  exit 1
+fi
+
+echo "[pre-commit] Building and running tests..."
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug >/dev/null
+cmake --build build >/dev/null
+ctest --test-dir build --output-on-failure >/dev/null
+
+echo "[pre-commit] All checks passed."

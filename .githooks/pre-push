@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+echo "[pre-push] Running debug build + tests..."
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug >/dev/null
+cmake --build build >/dev/null
+ctest --test-dir build --output-on-failure >/dev/null
+
+echo "[pre-push] Checks passed."

@@ -34,5 +34,43 @@ after researching alot of refrences i found out most green-thread projects stop 
 
 - Compiler: `gcc` with C17
 - Sanitizers: AddressSanitizer + UndefinedBehaviorSanitizer
-- Test runner: `ctest` or custom test harness
+- Test runner: `ctest` with **CMocka** unit tests
 - Static checks: `clang-tidy` (optional first pass)
+
+## Dependencies
+
+- CMake >= 3.20
+- C compiler with C17 support (gcc/clang)
+- CMocka development package (`libcmocka-dev` on Debian/Ubuntu)
+- `clang-format`
+
+## Build & Test
+
+- Configure and build:
+  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug`
+  - `cmake --build build`
+- Run tests:
+  - `ctest --test-dir build --output-on-failure`
+
+## Formatting
+
+- Format source code:
+  - `cmake --build build --target format`
+- Verify formatting only:
+  - `cmake --build build --target format-check`
+
+## Git Hooks
+
+- Install hooks:
+  - `./scripts/install-hooks.sh`
+
+Installed pre-commit hook runs:
+
+1. `clang-format` check on staged `*.c` and `*.h` files
+2. debug build
+3. test execution via `ctest`
+
+Installed pre-push hook runs:
+
+1. debug build
+2. test execution via `ctest`

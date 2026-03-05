@@ -46,19 +46,28 @@ extern "C"
         const char *name;
     } gth_thread_attr_t;
 
-    typedef struct gth_mutex gth_mutex_t;
-    typedef struct gth_sem gth_sem_t;
-    typedef struct gth_cond gth_cond_t;
+    typedef struct
+    {
+        uint64_t _opaque[8];
+    } gth_mutex_t;
+
+    typedef struct
+    {
+        uint64_t _opaque[8];
+    } gth_sem_t;
+
+    typedef struct
+    {
+        uint64_t _opaque[8];
+    } gth_cond_t;
 
     typedef void *(*gth_thread_fn)(void *arg);
 
     gth_status_t gth_runtime_init(const gth_runtime_config_t *config);
     gth_status_t gth_runtime_shutdown(void);
 
-    gth_status_t gth_thread_create(gth_tid_t *out_tid,
-                                   const gth_thread_attr_t *attr,
-                                   gth_thread_fn fn,
-                                   void *arg);
+    gth_status_t gth_thread_create(gth_tid_t *out_tid, const gth_thread_attr_t *attr,
+                                   gth_thread_fn fn, void *arg);
     gth_status_t gth_thread_yield(void);
     gth_status_t gth_thread_join(gth_tid_t tid, void **retval);
     gth_status_t gth_thread_cancel(gth_tid_t tid);

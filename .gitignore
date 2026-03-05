@@ -1,0 +1,7 @@
+build/
+*.o
+*.a
+*.so
+*.log
+*.trace
+.cache/

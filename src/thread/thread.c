@@ -3,30 +3,6 @@
 #include "gthreads/gthreads.h"
 #include "runtime_state.h"
 
-static gth_thread_record_t *gth_find_thread(gth_runtime_state_t *state, gth_tid_t tid)
-{
-    for (size_t i = 0; i < GTH_MAX_THREADS; ++i)
-    {
-        if (state->threads[i].state != GTH_THREAD_EMPTY && state->threads[i].tid == tid)
-        {
-            return &state->threads[i];
-        }
-    }
-    return NULL;
-}
-
-static gth_thread_record_t *gth_alloc_thread_slot(gth_runtime_state_t *state)
-{
-    for (size_t i = 0; i < GTH_MAX_THREADS; ++i)
-    {
-        if (state->threads[i].state == GTH_THREAD_EMPTY)
-        {
-            return &state->threads[i];
-        }
-    }
-    return NULL;
-}
-
 gth_status_t gth_thread_create(gth_tid_t *out_tid, const gth_thread_attr_t *attr, gth_thread_fn fn,
                                void *arg)
 {
@@ -40,7 +16,7 @@ gth_status_t gth_thread_create(gth_tid_t *out_tid, const gth_thread_attr_t *attr
         return GTH_EINVAL;
     }
 
-    gth_thread_record_t *slot = gth_alloc_thread_slot(state);
+    gth_thread_record_t *slot = gth_runtime_alloc_thread_slot(state);
     if (slot == NULL)
     {
         return GTH_ENOMEM;
@@ -65,8 +41,9 @@ gth_status_t gth_thread_yield(void)
     {
         return GTH_ESTATE;
     }
-    state->context_switches += 1U;
-    return GTH_OK;
+
+    gth_status_t status = gth_scheduler_run_next();
+    return (status == GTH_ENOTFOUND) ? GTH_OK : status;
 }
 
 gth_status_t gth_thread_join(gth_tid_t tid, void **retval)
@@ -77,20 +54,42 @@ gth_status_t gth_thread_join(gth_tid_t tid, void **retval)
         return GTH_ESTATE;
     }
 
-    gth_thread_record_t *thread = gth_find_thread(state, tid);
+    if (tid == state->current_tid && tid != 0U)
+    {
+        return GTH_ESTATE;
+    }
+
+    gth_thread_record_t *thread = gth_runtime_find_thread(state, tid);
     if (thread == NULL)
     {
         return GTH_ENOTFOUND;
     }
-    if (thread->state != GTH_THREAD_DONE && thread->state != GTH_THREAD_CANCELED)
+
+    if (!gth_thread_is_terminal(thread->state))
     {
-        return GTH_EBUSY;
+        gth_status_t run_status = gth_scheduler_run_until(tid);
+        if (run_status != GTH_OK)
+        {
+            return run_status;
+        }
+        thread = gth_runtime_find_thread(state, tid);
+        if (thread == NULL)
+        {
+            return GTH_ENOTFOUND;
+        }
     }
+
     if (retval != NULL)
     {
         *retval = thread->retval;
     }
+
+    thread->tid = 0;
+    thread->fn = NULL;
+    thread->arg = NULL;
+    thread->retval = NULL;
     thread->state = GTH_THREAD_EMPTY;
+    thread->priority = 0U;
     return GTH_OK;
 }
 
@@ -102,19 +101,25 @@ gth_status_t gth_thread_cancel(gth_tid_t tid)
         return GTH_ESTATE;
     }
 
-    gth_thread_record_t *thread = gth_find_thread(state, tid);
+    gth_thread_record_t *thread = gth_runtime_find_thread(state, tid);
     if (thread == NULL)
     {
         return GTH_ENOTFOUND;
     }
-    if (thread->state == GTH_THREAD_DONE || thread->state == GTH_THREAD_CANCELED)
+    if (gth_thread_is_terminal(thread->state))
     {
         return GTH_ESTATE;
     }
-    if (state->runnable_threads > 0U)
+    if (thread->state == GTH_THREAD_READY && state->runnable_threads > 0U)
     {
         state->runnable_threads -= 1U;
     }
+    if (thread->state == GTH_THREAD_BLOCKED && state->blocked_threads > 0U)
+    {
+        state->blocked_threads -= 1U;
+    }
+
+    thread->retval = NULL;
     thread->state = GTH_THREAD_CANCELED;
     return GTH_OK;
 }

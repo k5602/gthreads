@@ -41,5 +41,11 @@ typedef struct
 } gth_runtime_state_t;
 
 gth_runtime_state_t *gth_runtime_state(void);
+gth_thread_record_t *gth_runtime_find_thread(gth_runtime_state_t *state, gth_tid_t tid);
+gth_thread_record_t *gth_runtime_alloc_thread_slot(gth_runtime_state_t *state);
+int gth_thread_is_terminal(gth_thread_state_t state);
+
+gth_status_t gth_scheduler_run_next(void);
+gth_status_t gth_scheduler_run_until(gth_tid_t tid);
 
 #endif

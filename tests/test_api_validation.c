@@ -33,8 +33,11 @@ void test_api_validation(void **state)
     assert_int_equal(gth_thread_create(&tid, NULL, NULL, NULL), GTH_EINVAL);
 
     assert_int_equal(gth_thread_join(99999U, NULL), GTH_ENOTFOUND);
+    assert_int_equal(gth_thread_cancel(99999U), GTH_ENOTFOUND);
+    assert_int_equal(gth_thread_yield(), GTH_OK);
 
     assert_int_equal(gth_trace_start(NULL), GTH_EINVAL);
 
     assert_int_equal(gth_runtime_shutdown(), GTH_OK);
+    assert_int_equal(gth_thread_yield(), GTH_ESTATE);
 }

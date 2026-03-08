@@ -16,14 +16,6 @@ to build a production-style green-thread library with:
 
 after researching alot of refrences i found out most green-thread projects stop at Round Robin scheduling. So `gthreads` adds a trace/replay subsystem that records scheduling and synchronization events and replays them deterministically to reproduce nondeterministic bugs.
 
-## Milestone Summary
-
-1. Runtime foundation: context switch, stack guard, create/yield/join
-2. Scheduling: RR then priority policy
-3. Synchronization primitives + correctness tests
-4. Trace/replay/fuzzing subsystem
-5. Performance benchmarks and stabilization
-
 ## Non-goals (v0.1)
 
 - Kernel-level threading

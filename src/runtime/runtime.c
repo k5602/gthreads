@@ -11,6 +11,35 @@ gth_runtime_state_t *gth_runtime_state(void)
     return &g_state;
 }
 
+gth_thread_record_t *gth_runtime_find_thread(gth_runtime_state_t *state, gth_tid_t tid)
+{
+    for (size_t i = 0; i < GTH_MAX_THREADS; ++i)
+    {
+        if (state->threads[i].state != GTH_THREAD_EMPTY && state->threads[i].tid == tid)
+        {
+            return &state->threads[i];
+        }
+    }
+    return NULL;
+}
+
+gth_thread_record_t *gth_runtime_alloc_thread_slot(gth_runtime_state_t *state)
+{
+    for (size_t i = 0; i < GTH_MAX_THREADS; ++i)
+    {
+        if (state->threads[i].state == GTH_THREAD_EMPTY)
+        {
+            return &state->threads[i];
+        }
+    }
+    return NULL;
+}
+
+int gth_thread_is_terminal(gth_thread_state_t state)
+{
+    return (state == GTH_THREAD_DONE || state == GTH_THREAD_CANCELED);
+}
+
 static int gth_config_is_valid(const gth_runtime_config_t *config)
 {
     if (config == NULL)
@@ -22,6 +51,10 @@ static int gth_config_is_valid(const gth_runtime_config_t *config)
         return 0;
     }
     if (config->quantum_us == 0U)
+    {
+        return 0;
+    }
+    if (config->policy != GTH_SCHED_RR && config->policy != GTH_SCHED_PRIORITY)
     {
         return 0;
     }

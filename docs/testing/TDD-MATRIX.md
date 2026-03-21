@@ -7,6 +7,7 @@ Date: 2026-03-02
 1. Write failing tests before runtime implementation for every non-trivial behavior.
 2. Encode discovered concurrency bugs as deterministic replay regressions.
 3. Keep tests deterministic by default (fixed seeds and explicit timeouts).
+4. M2 regression tests must cover lifecycle, scheduler fairness, stack safety, and state cleanup after shutdown.
 
 ## Milestone Test Matrix
 
@@ -17,8 +18,13 @@ Date: 2026-03-02
 | M1 Foundation | TDD-003 | Integration | Join completed thread | Join returns `GTH_OK` and captures retval |
 | M1 Foundation | TDD-004 | Safety | Stack guard page overflow trigger | Runtime detects and aborts thread safely |
 | M2 Scheduler | TDD-005 | Integration | RR fairness with equal workload | Bounded scheduling skew across threads |
-| M2 Scheduler | TDD-006 | Integration | Priority scheduling preemption | Higher-priority thread receives preferred service |
+| M2 Scheduler | TDD-006 | Integration | Priority scheduling preference | Higher-priority thread runs before lower-priority thread |
 | M2 Scheduler | TDD-007 | Stress | 1,000 short-lived threads | No memory leaks or invalid state transitions |
+| M2 Regression | TDD-017 | Regression | Runtime init rejects undersized stacks | `GTH_EINVAL` returned and runtime remains uninitialized |
+| M2 Regression | TDD-018 | Regression | Join on unknown tid fails cleanly | `GTH_ENOTFOUND` returned without mutating runtime stats |
+| M2 Regression | TDD-019 | Regression | Cancel on unknown tid fails cleanly | `GTH_ENOTFOUND` returned without changing active threads |
+| M2 Regression | TDD-020 | Regression | Runtime shutdown resets all counters | Stats return zeroed counters after shutdown/reinit |
+| M2 Regression | TDD-021 | Regression | Context test suite is deterministic | Guard-page contract tests do not depend on timing |
 | M3 Sync | TDD-008 | Integration | Mutex lock/unlock with contention | Mutual exclusion preserved |
 | M3 Sync | TDD-009 | Integration | Semaphore producer/consumer | No dropped or duplicated items |
 | M3 Sync | TDD-010 | Integration | Condition wait/signal ordering | Waiters wake according to signaling behavior |
@@ -42,6 +48,7 @@ Date: 2026-03-02
 - `tests/replay/test_trace_capture.c`
 - `tests/replay/test_trace_replay.c`
 - `tests/replay/test_fuzz_seed_determinism.c`
+- `tests/replay/test_replay_regressions.c`
 - `tests/stress/test_mass_threads.c`
 
 ## Deterministic Replay Regression Policy
@@ -51,6 +58,12 @@ Any concurrency bug found in stress/fuzz testing must be converted into:
 1. A trace artifact (`tests/replay/traces/<bug-id>.gthtrace`)
 2. A replay regression test (`tests/replay/test_bug_<bug-id>.c`)
 3. A short root-cause note in `docs/testing/replay-regressions.md`
+
+M2 regression additions should be kept deterministic and should assert:
+- runtime state is reset after shutdown
+- invalid input paths return stable error codes
+- scheduler behavior remains bounded for equal-priority workloads
+- stack-related validation fails before any thread starts
 
 ## Validation Commands (draft)
 

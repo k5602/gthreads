@@ -6,6 +6,13 @@
 
 static FILE *g_trace_file = NULL;
 
+static gth_status_t gth_trace_write_header(FILE *fp)
+{
+    static const char header[] = "GTHRACE:1\n";
+    size_t written = fwrite(header, 1U, sizeof(header) - 1U, fp);
+    return (written == sizeof(header) - 1U) ? GTH_OK : GTH_EINTERNAL;
+}
+
 gth_status_t gth_trace_start(const char *trace_path)
 {
     gth_runtime_state_t *state = gth_runtime_state();
@@ -28,12 +35,12 @@ gth_status_t gth_trace_start(const char *trace_path)
         return GTH_EINTERNAL;
     }
 
-    static const char header[] = "GTHRACE:1\n";
-    if (fwrite(header, 1U, sizeof(header) - 1U, g_trace_file) != (sizeof(header) - 1U))
+    gth_status_t status = gth_trace_write_header(g_trace_file);
+    if (status != GTH_OK)
     {
         fclose(g_trace_file);
         g_trace_file = NULL;
-        return GTH_EINTERNAL;
+        return status;
     }
 
     state->trace_enabled = 1;
@@ -79,9 +86,17 @@ gth_status_t gth_replay_from(const char *trace_path)
     char header[10] = {0};
     size_t bytes = fread(header, 1U, sizeof(header) - 1U, fp);
     fclose(fp);
-    if (bytes == 0U || strncmp(header, "GTHRACE:1", 9U) != 0)
+
+    if (bytes != sizeof(header) - 1U)
     {
         return GTH_ESTATE;
     }
+
+    if (strncmp(header, "GTHRACE:1", 9U) != 0)
+    {
+        return GTH_ESTATE;
+    }
+
+    state->trace_enabled = 0;
     return GTH_OK;
 }

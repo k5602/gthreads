@@ -5,3 +5,8 @@ build/
 *.log
 *.trace
 .cache/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake

@@ -4,40 +4,85 @@
 
 static gth_thread_record_t *gth_scheduler_pick_ready_thread(gth_runtime_state_t *state)
 {
+    gth_thread_record_t *best = NULL;
+
+    if (state == NULL)
+    {
+        return NULL;
+    }
+
     for (size_t i = 0; i < GTH_MAX_THREADS; ++i)
     {
-        if (state->threads[i].state == GTH_THREAD_READY)
+        gth_thread_record_t *candidate = &state->threads[i];
+
+        if (candidate->state != GTH_THREAD_READY)
         {
-            return &state->threads[i];
+            continue;
+        }
+
+        if (best == NULL)
+        {
+            best = candidate;
+            continue;
+        }
+
+        if (state->config.policy == GTH_SCHED_PRIORITY)
+        {
+            if (candidate->priority > best->priority)
+            {
+                best = candidate;
+                continue;
+            }
+
+            if (candidate->priority == best->priority && candidate->tid < best->tid)
+            {
+                best = candidate;
+                continue;
+            }
+        }
+        else
+        {
+            if (candidate->tid < best->tid)
+            {
+                best = candidate;
+            }
         }
     }
-    return NULL;
+
+    return best;
 }
 
 gth_status_t gth_scheduler_run_next(void)
 {
     gth_runtime_state_t *state = gth_runtime_state();
-    if (!state->initialized)
+    gth_thread_record_t *thread = NULL;
+    gth_tid_t previous_tid = 0U;
+    void *retval = NULL;
+
+    if (state == NULL || !state->initialized)
     {
         return GTH_ESTATE;
     }
 
-    gth_thread_record_t *thread = gth_scheduler_pick_ready_thread(state);
+    thread = gth_scheduler_pick_ready_thread(state);
     if (thread == NULL)
     {
         return GTH_ENOTFOUND;
     }
 
-    gth_tid_t previous_tid = state->current_tid;
+    previous_tid = state->current_tid;
+
     thread->state = GTH_THREAD_RUNNING;
     state->current_tid = thread->tid;
     state->context_switches += 1U;
+
     if (state->runnable_threads > 0U)
     {
         state->runnable_threads -= 1U;
     }
 
-    void *retval = thread->fn(thread->arg);
+    retval = thread->fn(thread->arg);
+
     if (thread->state == GTH_THREAD_RUNNING)
     {
         thread->retval = retval;
@@ -49,18 +94,21 @@ gth_status_t gth_scheduler_run_next(void)
     }
 
     state->current_tid = previous_tid;
+
     return GTH_OK;
 }
 
 gth_status_t gth_scheduler_run_until(gth_tid_t tid)
 {
     gth_runtime_state_t *state = gth_runtime_state();
-    if (!state->initialized)
+    gth_thread_record_t *target = NULL;
+
+    if (state == NULL || !state->initialized)
     {
         return GTH_ESTATE;
     }
 
-    gth_thread_record_t *target = gth_runtime_find_thread(state, tid);
+    target = gth_runtime_find_thread(state, tid);
     if (target == NULL)
     {
         return GTH_ENOTFOUND;

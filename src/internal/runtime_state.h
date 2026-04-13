@@ -87,6 +87,10 @@ extern "C"
                                          size_t slot_index);
     void gth_context_thread_trampoline(int slot_index_arg);
 
+    gth_status_t gth_thread_block(void);
+    gth_status_t gth_thread_unblock_slot(size_t slot_index);
+    size_t gth_thread_current_slot_index(void);
+
     void gth_runtime_snapshot_stats(gth_runtime_stats_snapshot_t *snapshot);
     gth_status_t gth_runtime_begin_shutdown(void);
 

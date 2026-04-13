@@ -228,6 +228,64 @@ gth_status_t gth_thread_cancel(gth_tid_t tid)
     return GTH_OK;
 }
 
+gth_status_t gth_thread_block(void)
+{
+    gth_runtime_state_t *state = gth_runtime_state();
+    gth_thread_record_t *current = NULL;
+
+    if (state == NULL || !state->initialized)
+    {
+        return GTH_ESTATE;
+    }
+
+    if (state->current_tid == 0U)
+    {
+        return GTH_ESTATE;
+    }
+
+    current = gth_runtime_find_thread(state, state->current_tid);
+    if (current == NULL)
+    {
+        return GTH_ESTATE;
+    }
+
+    current->state = GTH_THREAD_BLOCKED;
+    state->blocked_threads += 1U;
+
+    swapcontext(&current->ctx, &state->scheduler_ctx);
+    return GTH_OK;
+}
+
+gth_status_t gth_thread_unblock_slot(size_t slot_index)
+{
+    gth_runtime_state_t *state = gth_runtime_state();
+    gth_thread_record_t *thread = NULL;
+
+    if (state == NULL || !state->initialized)
+    {
+        return GTH_ESTATE;
+    }
+
+    if (slot_index >= GTH_MAX_THREADS)
+    {
+        return GTH_EINVAL;
+    }
+
+    thread = &state->threads[slot_index];
+    if (thread->state != GTH_THREAD_BLOCKED)
+    {
+        return GTH_ESTATE;
+    }
+
+    thread->state = GTH_THREAD_READY;
+    if (state->blocked_threads > 0U)
+    {
+        state->blocked_threads -= 1U;
+    }
+    state->runnable_threads += 1U;
+    return GTH_OK;
+}
+
 gth_tid_t gth_thread_self(void)
 {
     gth_runtime_state_t *state = gth_runtime_state();
@@ -236,4 +294,23 @@ gth_tid_t gth_thread_self(void)
         return 0U;
     }
     return state->current_tid;
+}
+
+size_t gth_thread_current_slot_index(void)
+{
+    gth_runtime_state_t *state = gth_runtime_state();
+    gth_thread_record_t *thread = NULL;
+
+    if (state == NULL || state->current_tid == 0U)
+    {
+        return GTH_MAX_THREADS;
+    }
+
+    thread = gth_runtime_find_thread(state, state->current_tid);
+    if (thread == NULL)
+    {
+        return GTH_MAX_THREADS;
+    }
+
+    return thread->slot_index;
 }

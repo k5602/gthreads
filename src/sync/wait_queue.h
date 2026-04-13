@@ -4,13 +4,15 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define GTH_WQ_FIXED_SLOTS 52U
+
 typedef struct
 {
     uint8_t head;
     uint8_t tail;
     uint8_t count;
     uint8_t capacity;
-    uint8_t slots[];
+    uint8_t slots[GTH_WQ_FIXED_SLOTS];
 } gth_wait_queue_t;
 
 static inline void gth_wq_init(gth_wait_queue_t *wq, uint8_t capacity)

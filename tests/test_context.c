@@ -241,3 +241,44 @@ void test_replay_and_trace_interfaces_validate_paths(void **state)
     assert_int_equal(gth_replay_from(""), GTH_EINVAL);
     assert_runtime_shutdown_ok();
 }
+
+static uint64_t g_context_yield_counter;
+
+static void *context_yielding_thread(void *arg)
+{
+    uint64_t *shared = (uint64_t *)arg;
+    *shared += 10U;
+    gth_thread_yield();
+    *shared += 20U;
+    gth_thread_yield();
+    *shared += 30U;
+    return (void *)(*shared);
+}
+
+void test_context_yield_resumes_correctly(void **state)
+{
+    (void)state;
+
+    gth_runtime_config_t cfg = make_valid_config(12U);
+    uint64_t shared = 0U;
+    void *retval = NULL;
+    gth_tid_t tid = 0;
+
+    assert_runtime_started_with_config(cfg);
+
+    assert_int_equal(gth_thread_create(&tid, NULL, context_yielding_thread, &shared), GTH_OK);
+
+    assert_int_equal(gth_thread_yield(), GTH_OK);
+    assert_int_equal(shared, 10U);
+
+    assert_int_equal(gth_thread_yield(), GTH_OK);
+    assert_int_equal(shared, 30U);
+
+    assert_int_equal(gth_thread_yield(), GTH_OK);
+    assert_int_equal(shared, 60U);
+
+    assert_int_equal(gth_thread_join(tid, &retval), GTH_OK);
+    assert_ptr_equal(retval, (void *)60U);
+
+    assert_runtime_shutdown_ok();
+}

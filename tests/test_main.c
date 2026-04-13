@@ -23,6 +23,19 @@ void test_m2_rr_fairness_regression(void **state);
 void test_m2_lifecycle_stress_regression(void **state);
 void test_context_yield_resumes_correctly(void **state);
 void test_m2_mass_1000_threads_stress(void **state);
+void test_mutex_mutual_exclusion_with_contention(void **state);
+void test_mutex_trylock_returns_busy_when_held(void **state);
+void test_mutex_blocking_on_contention(void **state);
+void test_mutex_init_destroy_cycle(void **state);
+void test_mutex_rejects_null(void **state);
+void test_sem_producer_consumer(void **state);
+void test_sem_fifo_wake_order(void **state);
+void test_sem_count_tracks_correctly(void **state);
+void test_sem_rejects_null(void **state);
+void test_cond_wait_signal_single(void **state);
+void test_cond_broadcast_wakes_all(void **state);
+void test_cond_signal_no_waiters_is_noop(void **state);
+void test_cond_rejects_null(void **state);
 
 int main(void)
 {
@@ -47,6 +60,19 @@ int main(void)
         cmocka_unit_test(test_m2_lifecycle_stress_regression),
         cmocka_unit_test(test_context_yield_resumes_correctly),
         cmocka_unit_test(test_m2_mass_1000_threads_stress),
+        cmocka_unit_test(test_mutex_mutual_exclusion_with_contention),
+        cmocka_unit_test(test_mutex_trylock_returns_busy_when_held),
+        cmocka_unit_test(test_mutex_blocking_on_contention),
+        cmocka_unit_test(test_mutex_init_destroy_cycle),
+        cmocka_unit_test(test_mutex_rejects_null),
+        cmocka_unit_test(test_sem_producer_consumer),
+        cmocka_unit_test(test_sem_fifo_wake_order),
+        cmocka_unit_test(test_sem_count_tracks_correctly),
+        cmocka_unit_test(test_sem_rejects_null),
+        cmocka_unit_test(test_cond_wait_signal_single),
+        cmocka_unit_test(test_cond_broadcast_wakes_all),
+        cmocka_unit_test(test_cond_signal_no_waiters_is_noop),
+        cmocka_unit_test(test_cond_rejects_null),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

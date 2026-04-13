@@ -54,6 +54,9 @@ add_executable(gthreads_tests
 				tests/test_api_validation.c
 				tests/test_runtime.c
 				tests/test_context.c
+				tests/test_sync_mutex.c
+				tests/test_sync_sem.c
+				tests/test_sync_cond.c
 )
 
 target_include_directories(gthreads_tests PRIVATE ${CMOCKA_INCLUDE_DIR})
@@ -66,6 +69,7 @@ if(CLANG_FORMAT_BIN)
 	set(GTHREADS_FORMAT_FILES
 								include/gthreads/gthreads.h
 								src/internal/runtime_state.h
+								src/sync/wait_queue.h
 								src/runtime/runtime.c
 								src/context/context.c
 								src/context/stack.c
@@ -79,6 +83,9 @@ if(CLANG_FORMAT_BIN)
 								tests/test_api_validation.c
 								tests/test_runtime.c
 								tests/test_context.c
+								tests/test_sync_mutex.c
+								tests/test_sync_sem.c
+								tests/test_sync_cond.c
 				)
 
 	add_custom_target(format

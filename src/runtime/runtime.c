@@ -160,6 +160,11 @@ gth_status_t gth_runtime_shutdown(void)
         return GTH_ESTATE;
     }
 
+    for (size_t i = 0; i < GTH_MAX_THREADS; ++i)
+    {
+        gth_stack_free(&g_state.threads[i].stack);
+    }
+
     memset(&g_state, 0, sizeof(g_state));
     return GTH_OK;
 }

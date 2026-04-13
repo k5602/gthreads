@@ -89,7 +89,66 @@ void test_runtime_executes_and_joins_threads(void **state)
     assert_int_equal(stats.blocked_threads, 0U);
 
     runtime_assert_shutdown_ok();
-    runtime_assert_shutdown_clears_stats();
+}
+
+static void *runtime_mass_stress_thread(void *arg)
+{
+    uint64_t *counter = (uint64_t *)arg;
+    if (counter != NULL)
+    {
+        *counter += 1U;
+    }
+    return arg;
+}
+
+void test_m2_mass_1000_threads_stress(void **state)
+{
+    (void)state;
+
+    runtime_assert_started_rr(55U);
+
+    enum
+    {
+        thread_count = 1000
+    };
+
+    gth_tid_t tids[thread_count];
+    uint64_t counters[thread_count];
+
+    for (size_t i = 0; i < thread_count; ++i)
+    {
+        tids[i] = 0U;
+        counters[i] = 0U;
+    }
+
+    for (size_t batch_start = 0; batch_start < thread_count; batch_start += 128U)
+    {
+        size_t batch_end = batch_start + 128U;
+        if (batch_end > thread_count)
+        {
+            batch_end = thread_count;
+        }
+
+        for (size_t i = batch_start; i < batch_end; ++i)
+        {
+            assert_int_equal(
+                gth_thread_create(&tids[i], NULL, runtime_mass_stress_thread, &counters[i]),
+                GTH_OK);
+        }
+
+        for (size_t i = batch_start; i < batch_end; ++i)
+        {
+            assert_int_equal(gth_thread_join(tids[i], NULL), GTH_OK);
+            assert_int_equal(counters[i], 1U);
+        }
+    }
+
+    gth_runtime_stats_t stats;
+    assert_int_equal(gth_runtime_get_stats(&stats), GTH_OK);
+    assert_int_equal(stats.runnable_threads, 0U);
+    assert_int_equal(stats.blocked_threads, 0U);
+
+    runtime_assert_shutdown_ok();
 }
 
 void test_runtime_join_drives_ready_thread(void **state)

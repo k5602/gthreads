@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <ucontext.h>
 
 #include "gthreads/gthreads.h"
 
@@ -27,12 +28,24 @@ extern "C"
 
     typedef struct
     {
+        void *memory;
+        size_t total_size;
+        size_t stack_size;
+        void *stack_top;
+        void *guard_page;
+    } gth_stack_allocation_t;
+
+    typedef struct
+    {
         gth_tid_t tid;
         gth_thread_fn fn;
         void *arg;
         void *retval;
         uint32_t priority;
         gth_thread_state_t state;
+        ucontext_t ctx;
+        gth_stack_allocation_t stack;
+        size_t slot_index;
     } gth_thread_record_t;
 
     typedef struct
@@ -47,17 +60,9 @@ extern "C"
         uint64_t blocked_threads;
         uint64_t finished_threads;
         int trace_enabled;
+        ucontext_t scheduler_ctx;
         gth_thread_record_t threads[GTH_MAX_THREADS];
     } gth_runtime_state_t;
-
-    typedef struct
-    {
-        void *memory;
-        size_t total_size;
-        size_t stack_size;
-        void *stack_top;
-        void *guard_page;
-    } gth_stack_allocation_t;
 
     typedef struct
     {
@@ -77,6 +82,10 @@ extern "C"
 
     gth_status_t gth_stack_allocate(size_t stack_size_bytes, gth_stack_allocation_t *out_stack);
     void gth_stack_free(gth_stack_allocation_t *stack);
+
+    gth_status_t gth_context_init_thread(ucontext_t *ctx, const gth_stack_allocation_t *stack,
+                                         size_t slot_index);
+    void gth_context_thread_trampoline(int slot_index_arg);
 
     void gth_runtime_snapshot_stats(gth_runtime_stats_snapshot_t *snapshot);
     gth_status_t gth_runtime_begin_shutdown(void);

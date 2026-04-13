@@ -21,6 +21,8 @@ void test_round_robin_threads_complete_under_load(void **state);
 void test_mass_thread_creation_limit_is_reported(void **state);
 void test_m2_rr_fairness_regression(void **state);
 void test_m2_lifecycle_stress_regression(void **state);
+void test_context_yield_resumes_correctly(void **state);
+void test_m2_mass_1000_threads_stress(void **state);
 
 int main(void)
 {
@@ -43,6 +45,8 @@ int main(void)
         cmocka_unit_test(test_mass_thread_creation_limit_is_reported),
         cmocka_unit_test(test_m2_rr_fairness_regression),
         cmocka_unit_test(test_m2_lifecycle_stress_regression),
+        cmocka_unit_test(test_context_yield_resumes_correctly),
+        cmocka_unit_test(test_m2_mass_1000_threads_stress),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

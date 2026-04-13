@@ -96,6 +96,7 @@ gth_status_t gth_thread_create(gth_tid_t *out_tid, const gth_thread_attr_t *attr
     }
 
     memset(slot, 0, sizeof(*slot));
+    slot->slot_index = (size_t)(slot - state->threads);
     slot->tid = state->next_tid++;
     slot->fn = fn;
     slot->arg = arg;

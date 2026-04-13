@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include <ucontext.h>
 
 #include "runtime_state.h"
 
@@ -57,7 +58,6 @@ gth_status_t gth_scheduler_run_next(void)
     gth_runtime_state_t *state = gth_runtime_state();
     gth_thread_record_t *thread = NULL;
     gth_tid_t previous_tid = 0U;
-    void *retval = NULL;
 
     if (state == NULL || !state->initialized)
     {
@@ -81,17 +81,7 @@ gth_status_t gth_scheduler_run_next(void)
         state->runnable_threads -= 1U;
     }
 
-    retval = thread->fn(thread->arg);
-
-    if (thread->state == GTH_THREAD_RUNNING)
-    {
-        thread->retval = retval;
-        thread->state = GTH_THREAD_DONE;
-    }
-    else if (thread->state == GTH_THREAD_CANCELED)
-    {
-        thread->retval = NULL;
-    }
+    swapcontext(&state->scheduler_ctx, &thread->ctx);
 
     state->current_tid = previous_tid;
 

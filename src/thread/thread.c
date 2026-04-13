@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include <string.h>
+#include <ucontext.h>
 
 #include "gthreads/gthreads.h"
 #include "runtime_state.h"
@@ -45,7 +46,12 @@ static void gth_runtime_set_thread_state(gth_runtime_state_t *state, gth_thread_
 
 static gth_thread_record_t *gth_thread_acquire_slot(gth_runtime_state_t *state)
 {
-    return gth_runtime_alloc_thread_slot(state);
+    gth_thread_record_t *slot = gth_runtime_alloc_thread_slot(state);
+    if (slot != NULL)
+    {
+        slot->slot_index = (size_t)(slot - state->threads);
+    }
+    return slot;
 }
 
 static void gth_thread_release_slot(gth_runtime_state_t *state, gth_thread_record_t *thread)
@@ -64,6 +70,7 @@ static void gth_thread_release_slot(gth_runtime_state_t *state, gth_thread_recor
         state->blocked_threads -= 1U;
     }
 
+    gth_stack_free(&thread->stack);
     memset(thread, 0, sizeof(*thread));
     thread->state = GTH_THREAD_EMPTY;
 }
@@ -96,6 +103,23 @@ gth_status_t gth_thread_create(gth_tid_t *out_tid, const gth_thread_attr_t *attr
     slot->state = GTH_THREAD_READY;
     slot->priority = (attr != NULL) ? attr->priority : 0U;
 
+    gth_status_t status = gth_stack_allocate(state->config.stack_size_bytes, &slot->stack);
+    if (status != GTH_OK)
+    {
+        memset(slot, 0, sizeof(*slot));
+        slot->state = GTH_THREAD_EMPTY;
+        return status;
+    }
+
+    status = gth_context_init_thread(&slot->ctx, &slot->stack, slot->slot_index);
+    if (status != GTH_OK)
+    {
+        gth_stack_free(&slot->stack);
+        memset(slot, 0, sizeof(*slot));
+        slot->state = GTH_THREAD_EMPTY;
+        return status;
+    }
+
     state->runnable_threads += 1U;
     *out_tid = slot->tid;
 
@@ -110,7 +134,22 @@ gth_status_t gth_thread_yield(void)
         return GTH_ESTATE;
     }
 
-    return gth_scheduler_run_next();
+    if (state->current_tid == 0U)
+    {
+        return gth_scheduler_run_next();
+    }
+
+    gth_thread_record_t *current = gth_runtime_find_thread(state, state->current_tid);
+    if (current == NULL)
+    {
+        return GTH_ESTATE;
+    }
+
+    current->state = GTH_THREAD_READY;
+    state->runnable_threads += 1U;
+
+    swapcontext(&current->ctx, &state->scheduler_ctx);
+    return GTH_OK;
 }
 
 gth_status_t gth_thread_join(gth_tid_t tid, void **retval)

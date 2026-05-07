@@ -60,4 +60,35 @@ static inline uint8_t gth_wq_dequeue(gth_wait_queue_t *wq)
     return slot_index;
 }
 
+/* Remove the first occurrence of slot_value from the queue.
+ * Returns 1 if removed, 0 if not found. O(n) scan -- acceptable
+ * because capacity is small (<=52) and this is only called on
+ * error paths. */
+static inline int gth_wq_remove(gth_wait_queue_t *wq, uint8_t slot_value)
+{
+    if (wq->count == 0)
+    {
+        return 0;
+    }
+
+    for (uint8_t i = 0; i < wq->count; i++)
+    {
+        uint8_t idx = (wq->head + i) % wq->capacity;
+        if (wq->slots[idx] == slot_value)
+        {
+            /* Shift elements [idx+1 .. tail) left by one slot. */
+            for (uint8_t j = i; j + 1 < wq->count; j++)
+            {
+                uint8_t cur = (wq->head + j) % wq->capacity;
+                uint8_t nxt = (wq->head + j + 1) % wq->capacity;
+                wq->slots[cur] = wq->slots[nxt];
+            }
+            wq->tail = (wq->tail + wq->capacity - 1) % wq->capacity;
+            wq->count -= 1;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 #endif

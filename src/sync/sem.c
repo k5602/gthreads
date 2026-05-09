@@ -71,11 +71,13 @@ gth_status_t gth_sem_wait(gth_sem_t *s)
         }
 
         gth_wq_enqueue(&impl->wq, (uint8_t)my_slot);
+        gth_trace_sem_wait(gth_thread_self(), (const void *)s, 0U);
         gth_thread_block();
     }
     else
     {
         impl->count -= 1U;
+        gth_trace_sem_wait(gth_thread_self(), (const void *)s, impl->count + 1U);
     }
     return GTH_OK;
 }
@@ -100,6 +102,7 @@ gth_status_t gth_sem_post(gth_sem_t *s)
         uint8_t waiter_slot = gth_wq_dequeue(&impl->wq);
         if (waiter_slot != 0xFF)
         {
+            gth_trace_sem_wake(gth_thread_self(), (const void *)s);
             gth_thread_unblock_slot((size_t)waiter_slot);
         }
     }
@@ -108,6 +111,7 @@ gth_status_t gth_sem_post(gth_sem_t *s)
         impl->count += 1U;
     }
 
+    gth_trace_sem_post(gth_thread_self(), (const void *)s, impl->count);
     return GTH_OK;
 }
 

@@ -1,30 +1,36 @@
-#define _GNU_SOURCE
-
-/*
- * TODO: Replace ucontext_t with hand-made x86_64 assembly context
- * switch (save/restore callee-saved registers + RSP/RIP) for a significant
- * performance improvement.  ucontext saves the full signal mask on every
- * swap which is unnecessary in a purely cooperative runtime.
- */
+#include <stdlib.h>
 
 #include "runtime_state.h"
 
-gth_status_t gth_context_init_thread(ucontext_t *ctx, const gth_stack_allocation_t *stack,
+gth_status_t gth_context_init_thread(gth_ctx_t *ctx, const gth_stack_allocation_t *stack,
                                      size_t slot_index)
 {
-    if (getcontext(ctx) != 0)
+    /* Allocate 16-byte aligned 512-byte buffer for fxsave/fxrstor */
+    void *fxsave = aligned_alloc(16, 512);
+    if (fxsave == NULL)
     {
-        return GTH_EINTERNAL;
+        return GTH_ENOMEM;
     }
 
-    ctx->uc_stack.ss_sp = stack->memory;
-    ctx->uc_stack.ss_size = stack->total_size;
-    ctx->uc_stack.ss_flags = 0;
-    ctx->uc_link = NULL;
+    ctx->fxsave_area = fxsave;
 
-    makecontext(ctx, (void (*)(void))gth_context_thread_trampoline, 1, (int)slot_index);
+    /*
+     * stack_top is page-aligned (set by gth_stack_allocate), so it is
+     * 16-byte aligned. gth_ctx_make will subtract 16 for trampoline
+     * args, keeping 16-byte alignment.
+     */
+    gth_ctx_make(ctx, stack->stack_top, gth_context_thread_trampoline, (int)slot_index);
 
     return GTH_OK;
+}
+
+void gth_context_destroy(gth_ctx_t *ctx)
+{
+    if (ctx != NULL && ctx->fxsave_area != NULL)
+    {
+        free(ctx->fxsave_area);
+        ctx->fxsave_area = NULL;
+    }
 }
 
 void gth_context_thread_trampoline(int slot_index_arg)
@@ -45,11 +51,17 @@ void gth_context_thread_trampoline(int slot_index_arg)
         thread->retval = NULL;
     }
 
-    state->current_tid = 0U;
-    setcontext(&state->scheduler_ctx);
-}
+    gth_trace_thread_exit(thread->tid, thread->retval);
 
-gth_status_t gth_context_backend_placeholder(void)
-{
-    return GTH_OK;
+    state->current_tid = 0U;
+
+    /*
+     * Thread is done; switch back to the scheduler. The current thread's
+     * context is discarded (it will never be resumed), so we pass a
+     * zeroed dummy as the `from` context. gth_ctx_swap checks for NULL
+     * fxsave_area before executing fxsave, so this is safe.
+     */
+    gth_ctx_t dummy;
+    dummy.fxsave_area = NULL;
+    gth_ctx_swap(&dummy, &state->scheduler_ctx);
 }

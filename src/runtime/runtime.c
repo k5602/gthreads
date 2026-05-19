@@ -160,8 +160,27 @@ gth_status_t gth_runtime_shutdown(void)
         return GTH_ESTATE;
     }
 
+    /* Clean up trace subsystem if active */
+    if (g_state.trace != NULL)
+    {
+        gth_trace_cleanup();
+    }
+
+    /* Clean up replay subsystem if active */
+    if (g_state.replay != NULL)
+    {
+        gth_replay_cleanup();
+    }
+
+    /* Clean up fuzz subsystem if active */
+    if (g_state.fuzz != NULL)
+    {
+        gth_fuzz_cleanup();
+    }
+
     for (size_t i = 0; i < GTH_MAX_THREADS; ++i)
     {
+        gth_context_destroy(&g_state.threads[i].ctx);
         gth_stack_free(&g_state.threads[i].stack);
     }
 

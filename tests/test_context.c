@@ -96,8 +96,8 @@ void test_stack_guard_overflow_is_detected(void **state)
     (void)state;
 
     /*
-     * This test records the safety contract for M2:
-     * stack guard failures must not silently corrupt runtime state.
+     * Safety contract: stack guard failures must not silently corrupt
+     * runtime state.
      *
      * The current cooperative implementation does not yet execute a real
      * overflow, but the runtime must preserve the guard-page configuration

@@ -1,68 +1,76 @@
 # gthreads
 
-this project is something i have been Procastinating the work on for a long time but now is the time, gthreads as "green-threads" is deterministic user-space threading runtime in C, designed to demonstrate OS/runtime knowleadge into something paractical
-notations covered "or may be covered" context switching, stack management, scheduling, synchronization, and reproducible concurrency debugging.
+Deterministic user-space threading runtime in C17 for Linux x86_64.
 
-## Project Goal
+Cooperative green threads, hand-written x86_64 context switching, deterministic trace/replay, and schedule fuzzing.
 
-to build a production-style green-thread library with:
+## Why this exists
 
-- User-space threads and cooperative/preemptive scheduling (configurable)
-- Synchronization primitives (mutex, semaphore, condition variable)
-- Linux event-loop integration (`epoll`)
-- **Deterministic replay + schedule fuzzing** for race reproduction
+This project was my way back into Systems especially OS internals after my time in vulnera - building something real from scratch where every line has to make sense. Context switches, stack management, scheduler design, sync primitives and assembly - the stuff you don't learn by prompting like the nonsense happening now.
 
-## Why this project is differentiated
+I'll come back to it now and then, but the point was never to ship a library. The point was to understand what's actually happening under the hood so this an educational project.
 
-after researching alot of refrences i found out most green-thread projects stop at Round Robin scheduling. So `gthreads` adds a trace/replay subsystem that records scheduling and synchronization events and replays them deterministically to reproduce nondeterministic bugs.
+Thanks to prof. Andrea Arpaci-Dusseau and prof. Remzi Arpaci-Dusseau for their great work on operating systems Course and Book.
 
-## Non-goals (v0.1)
+## Build
 
-- Kernel-level threading
-- Windows/macOS portability (Linux-first)
-- Lock-free scheduler internals
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
 
-## Build & Validation (target)
+Requires: Linux x86_64, CMake >= 3.20, GCC/Clang (C17), `libcmocka-dev`.
 
-- Compiler: `gcc` with C17
-- Sanitizers: AddressSanitizer + UndefinedBehaviorSanitizer
-- Test runner: `ctest` with **CMocka** unit tests
-- Static checks: `clang-tidy` (optional first pass)
+## Performance
 
-## Dependencies
+Measured on Intel i5-12500H (4.2 GHz):
 
-- CMake >= 3.20
-- C compiler with C17 support (gcc/clang)
-- CMocka development package (`libcmocka-dev` on Debian/Ubuntu)
-- `clang-format`
+| Operation | Latency |
+|-----------|---------|
+| Context switch (yield) | ~140-180 ns |
+| Thread create + join | ~5,300 ns |
+| Mutex lock + unlock | ~21 ns |
+| Semaphore wait + post | ~19 ns |
 
-## Build & Test
+## Quick start
 
-- Configure and build:
-  - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug`
-  - `cmake --build build`
-- Run tests:
-  - `ctest --test-dir build --output-on-failure`
+```c
+#include <gthreads/gthreads.h>
 
-## Formatting
+static void *worker(void *arg) {
+    printf("thread %lu\n", (unsigned long)gth_thread_self());
+    return NULL;
+}
 
-- Format source code:
-  - `cmake --build build --target format`
-- Verify formatting only:
-  - `cmake --build build --target format-check`
+int main(void) {
+    gth_runtime_init(&(gth_runtime_config_t){ .stack_size_bytes = 65536 });
+    gth_tid_t tid;
+    gth_thread_create(&tid, NULL, worker, NULL);
+    gth_thread_join(tid, NULL);
+    gth_runtime_shutdown();
+}
+```
 
-## Git Hooks
+## API
 
-- Install hooks:
-  - `./scripts/install-hooks.sh`
+| Category | Functions |
+|----------|-----------|
+| Runtime | `gth_runtime_init`, `gth_runtime_shutdown`, `gth_runtime_get_stats` |
+| Threads | `gth_thread_create`, `gth_thread_join`, `gth_thread_yield`, `gth_thread_cancel`, `gth_thread_self` |
+| Mutex | `gth_mutex_init`, `gth_mutex_lock`, `gth_mutex_trylock`, `gth_mutex_unlock`, `gth_mutex_destroy` |
+| Semaphore | `gth_sem_init`, `gth_sem_wait`, `gth_sem_post`, `gth_sem_destroy` |
+| Condition | `gth_cond_init`, `gth_cond_wait`, `gth_cond_signal`, `gth_cond_broadcast`, `gth_cond_destroy` |
+| Trace/Replay | `gth_trace_start`, `gth_trace_stop`, `gth_replay_from` |
+| Fuzz | `gth_fuzz_get_stats`, `gth_fuzz_set_rate` |
 
-Installed pre-commit hook runs:
+All functions return `gth_status_t` (0 = success). Full docs in `include/gthreads/gthreads.h`.
 
-1. `clang-format` check on staged `*.c` and `*.h` files
-2. debug build
-3. test execution via `ctest`
+## Examples
 
-Installed pre-push hook runs:
+See `examples/` - basic_threads, sync_demo, trace_replay.
 
-1. debug build
-2. test execution via `ctest`
+## Docs
+
+- [Architecture](docs/architecture/ARCHITECTURE.md) - module map, data structures, context switching flow
+- [TDD Matrix](docs/testing/TDD-MATRIX.md) - test plan by feature area

@@ -1,4 +1,5 @@
 #include <setjmp.h>
+#include <stdarg.h>
 #include <stddef.h>
 
 #include <cmocka.h>
@@ -19,10 +20,10 @@ void test_replay_and_trace_interfaces_validate_paths(void **state);
 void test_priority_scheduler_prefers_higher_priority_thread(void **state);
 void test_round_robin_threads_complete_under_load(void **state);
 void test_mass_thread_creation_limit_is_reported(void **state);
-void test_m2_rr_fairness_regression(void **state);
-void test_m2_lifecycle_stress_regression(void **state);
+void test_rr_fairness_regression(void **state);
+void test_lifecycle_stress_regression(void **state);
 void test_context_yield_resumes_correctly(void **state);
-void test_m2_mass_1000_threads_stress(void **state);
+void test_mass_1000_threads_stress(void **state);
 void test_mutex_mutual_exclusion_with_contention(void **state);
 void test_mutex_trylock_returns_busy_when_held(void **state);
 void test_mutex_blocking_on_contention(void **state);
@@ -36,6 +37,17 @@ void test_cond_wait_signal_single(void **state);
 void test_cond_broadcast_wakes_all(void **state);
 void test_cond_signal_no_waiters_is_noop(void **state);
 void test_cond_rejects_null(void **state);
+void test_trace_creates_valid_file(void **state);
+void test_trace_records_thread_events(void **state);
+void test_trace_records_context_switches(void **state);
+void test_trace_records_sync_events(void **state);
+void test_replay_validates_header(void **state);
+void test_replay_from_nonexistent_file(void **state);
+void test_fuzz_same_seed_same_behavior(void **state);
+void test_fuzz_different_seed_different_behavior(void **state);
+void test_trace_start_stop_cycle(void **state);
+void test_trace_rejects_invalid_paths(void **state);
+void test_scheduler_mode_transitions(void **state);
 
 int main(void)
 {
@@ -56,10 +68,10 @@ int main(void)
         cmocka_unit_test(test_priority_scheduler_prefers_higher_priority_thread),
         cmocka_unit_test(test_round_robin_threads_complete_under_load),
         cmocka_unit_test(test_mass_thread_creation_limit_is_reported),
-        cmocka_unit_test(test_m2_rr_fairness_regression),
-        cmocka_unit_test(test_m2_lifecycle_stress_regression),
+        cmocka_unit_test(test_rr_fairness_regression),
+        cmocka_unit_test(test_lifecycle_stress_regression),
         cmocka_unit_test(test_context_yield_resumes_correctly),
-        cmocka_unit_test(test_m2_mass_1000_threads_stress),
+        cmocka_unit_test(test_mass_1000_threads_stress),
         cmocka_unit_test(test_mutex_mutual_exclusion_with_contention),
         cmocka_unit_test(test_mutex_trylock_returns_busy_when_held),
         cmocka_unit_test(test_mutex_blocking_on_contention),
@@ -73,6 +85,17 @@ int main(void)
         cmocka_unit_test(test_cond_broadcast_wakes_all),
         cmocka_unit_test(test_cond_signal_no_waiters_is_noop),
         cmocka_unit_test(test_cond_rejects_null),
+        cmocka_unit_test(test_trace_creates_valid_file),
+        cmocka_unit_test(test_trace_records_thread_events),
+        cmocka_unit_test(test_trace_records_context_switches),
+        cmocka_unit_test(test_trace_records_sync_events),
+        cmocka_unit_test(test_replay_validates_header),
+        cmocka_unit_test(test_replay_from_nonexistent_file),
+        cmocka_unit_test(test_fuzz_same_seed_same_behavior),
+        cmocka_unit_test(test_fuzz_different_seed_different_behavior),
+        cmocka_unit_test(test_trace_start_stop_cycle),
+        cmocka_unit_test(test_trace_rejects_invalid_paths),
+        cmocka_unit_test(test_scheduler_mode_transitions),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

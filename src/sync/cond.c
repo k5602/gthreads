@@ -67,10 +67,15 @@ gth_status_t gth_cond_wait(gth_cond_t *c, gth_mutex_t *m)
     }
 
     gth_wq_enqueue(&impl->wq, (uint8_t)my_slot);
+    gth_trace_cond_wait(gth_thread_self(), (const void *)c);
 
     status = gth_mutex_unlock(m);
     if (status != GTH_OK)
     {
+        /* Remove stale WQ entry -- the thread will never block, so
+         * leaving the slot in the queue would cause a spurious wakeup
+         * or a stale-ptr dereference when signal/broadcast runs. */
+        gth_wq_remove(&impl->wq, (uint8_t)my_slot);
         return status;
     }
 
@@ -100,6 +105,8 @@ gth_status_t gth_cond_signal(gth_cond_t *c)
         uint8_t waiter_slot = gth_wq_dequeue(&impl->wq);
         if (waiter_slot != 0xFF)
         {
+            gth_tid_t target_tid = gth_runtime_state()->threads[waiter_slot].tid;
+            gth_trace_cond_signal(gth_thread_self(), (const void *)c, target_tid);
             gth_thread_unblock_slot((size_t)waiter_slot);
         }
     }
@@ -122,14 +129,17 @@ gth_status_t gth_cond_broadcast(gth_cond_t *c)
         return GTH_ESTATE;
     }
 
+    uint32_t wake_count = 0;
     while (!gth_wq_is_empty(&impl->wq))
     {
         uint8_t waiter_slot = gth_wq_dequeue(&impl->wq);
         if (waiter_slot != 0xFF)
         {
+            wake_count++;
             gth_thread_unblock_slot((size_t)waiter_slot);
         }
     }
+    gth_trace_cond_broadcast(gth_thread_self(), (const void *)c, wake_count);
 
     return GTH_OK;
 }

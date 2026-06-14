@@ -1,6 +1,5 @@
 #include <stddef.h>
 #include <string.h>
-#include <ucontext.h>
 
 #include "gthreads/gthreads.h"
 #include "runtime_state.h"
@@ -70,6 +69,7 @@ static void gth_thread_release_slot(gth_runtime_state_t *state, gth_thread_recor
         state->blocked_threads -= 1U;
     }
 
+    gth_context_destroy(&thread->ctx);
     gth_stack_free(&thread->stack);
     memset(thread, 0, sizeof(*thread));
     thread->state = GTH_THREAD_EMPTY;
@@ -124,6 +124,8 @@ gth_status_t gth_thread_create(gth_tid_t *out_tid, const gth_thread_attr_t *attr
     state->runnable_threads += 1U;
     *out_tid = slot->tid;
 
+    gth_trace_thread_create(slot->tid);
+
     return GTH_OK;
 }
 
@@ -146,10 +148,12 @@ gth_status_t gth_thread_yield(void)
         return GTH_ESTATE;
     }
 
+    gth_trace_thread_yield(state->current_tid);
+
     current->state = GTH_THREAD_READY;
     state->runnable_threads += 1U;
 
-    swapcontext(&current->ctx, &state->scheduler_ctx);
+    gth_ctx_swap(&current->ctx, &state->scheduler_ctx);
     return GTH_OK;
 }
 
@@ -223,6 +227,8 @@ gth_status_t gth_thread_cancel(gth_tid_t tid)
         return GTH_ESTATE;
     }
 
+    gth_trace_thread_cancel(tid);
+
     gth_runtime_set_thread_state(state, thread, GTH_THREAD_CANCELED);
     thread->retval = NULL;
     return GTH_OK;
@@ -249,10 +255,12 @@ gth_status_t gth_thread_block(void)
         return GTH_ESTATE;
     }
 
+    gth_trace_thread_block(state->current_tid, GTH_BLOCK_REASON_NONE);
+
     current->state = GTH_THREAD_BLOCKED;
     state->blocked_threads += 1U;
 
-    swapcontext(&current->ctx, &state->scheduler_ctx);
+    gth_ctx_swap(&current->ctx, &state->scheduler_ctx);
     return GTH_OK;
 }
 
@@ -283,6 +291,9 @@ gth_status_t gth_thread_unblock_slot(size_t slot_index)
         state->blocked_threads -= 1U;
     }
     state->runnable_threads += 1U;
+
+    gth_trace_thread_unblock(thread->tid);
+
     return GTH_OK;
 }
 

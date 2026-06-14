@@ -101,7 +101,7 @@ static void *runtime_mass_stress_thread(void *arg)
     return arg;
 }
 
-void test_m2_mass_1000_threads_stress(void **state)
+void test_mass_1000_threads_stress(void **state)
 {
     (void)state;
 
@@ -172,7 +172,7 @@ void test_runtime_join_drives_ready_thread(void **state)
     runtime_assert_shutdown_ok();
 }
 
-void test_m2_rr_fairness_regression(void **state)
+void test_rr_fairness_regression(void **state)
 {
     (void)state;
 
@@ -211,7 +211,7 @@ void test_m2_rr_fairness_regression(void **state)
     runtime_assert_shutdown_ok();
 }
 
-void test_m2_lifecycle_stress_regression(void **state)
+void test_lifecycle_stress_regression(void **state)
 {
     (void)state;
 

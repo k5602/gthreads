@@ -126,3 +126,6 @@ gth_ctx_trampoline:
     ud2                         /* entry must not return; trap if it does */
 
     .size   gth_ctx_trampoline, . - gth_ctx_trampoline
+
+    /* Mark stack as non-executable to avoid linker warning */
+    .section .note.GNU-stack,"",@progbits

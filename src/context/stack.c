@@ -6,15 +6,20 @@
 
 #include "runtime_state.h"
 
+#define GTH_MAX_STACK_SIZE (64U * 1024U * 1024U)
+
 static size_t gth_page_size(void)
 {
-    long page_size = sysconf(_SC_PAGESIZE);
-    if (page_size <= 0)
+    static size_t cached_page_size = 0U;
+    if (cached_page_size == 0U)
     {
-        return 0U;
+        long ps = sysconf(_SC_PAGESIZE);
+        if (ps > 0)
+        {
+            cached_page_size = (size_t)ps;
+        }
     }
-
-    return (size_t)page_size;
+    return cached_page_size;
 }
 
 static int gth_is_power_of_two(size_t value)
@@ -56,7 +61,7 @@ gth_status_t gth_stack_allocate(size_t stack_size_bytes, gth_stack_allocation_t 
         return GTH_EINTERNAL;
     }
 
-    if (stack_size_bytes < 16U * 1024U)
+    if (stack_size_bytes < 16U * 1024U || stack_size_bytes > GTH_MAX_STACK_SIZE)
     {
         return GTH_EINVAL;
     }

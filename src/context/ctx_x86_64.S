@@ -65,11 +65,11 @@ gth_ctx_swap:
 
 /* ------------------------------------------------------------------ */
 /* gth_ctx_make(gth_ctx_t *ctx, void *stack_top,                      */
-/*              void (*entry)(int), int slot_index)                    */
-/*   ctx       = %rdi                                                   */
-/*   stack_top = %rsi                                                   */
-/*   entry     = %rdx                                                   */
-/*   slot_index = %ecx                                                  */
+/*              void (*entry)(size_t), size_t slot_index)             */
+/*   ctx        = %rdi                                                */
+/*   stack_top  = %rsi                                                */
+/*   entry      = %rdx                                                */
+/*   slot_index = %rcx                                                */
 /* ------------------------------------------------------------------ */
     .globl  gth_ctx_make
     .type   gth_ctx_make, @function
@@ -89,8 +89,7 @@ gth_ctx_make:
 
     /* Store entry args on the stack at [RSP] and [RSP+8] */
     movq    %rdx, (%rax)        /* [RSP+0] = entry function pointer */
-    movslq  %ecx, %rdx          /* sign-extend slot_index to 64 bits */
-    movq    %rdx, 8(%rax)       /* [RSP+8] = slot_index */
+    movq    %rcx, 8(%rax)       /* [RSP+8] = slot_index (size_t) */
 
     /* Set RIP = gth_ctx_trampoline */
     leaq    gth_ctx_trampoline(%rip), %rax

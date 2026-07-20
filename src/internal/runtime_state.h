@@ -126,6 +126,7 @@ extern "C"
          */
         gth_ctx_t scheduler_ctx;
         gth_thread_record_t threads[GTH_MAX_THREADS];
+        size_t last_rr_slot;
 
         /* Scheduler mode and subsystems */
         gth_scheduler_mode_t mode;  /* Current operating mode */
@@ -161,7 +162,7 @@ extern "C"
     gth_status_t gth_context_init_thread(gth_ctx_t *ctx, const gth_stack_allocation_t *stack,
                                          size_t slot_index);
     void gth_context_destroy(gth_ctx_t *ctx);
-    void gth_context_thread_trampoline(int slot_index_arg);
+    void gth_context_thread_trampoline(size_t slot_index_arg);
 
     /* Thread lifecycle */
     gth_status_t gth_thread_block(void);

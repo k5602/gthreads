@@ -24,6 +24,23 @@ static gth_thread_record_t *gth_scheduler_pick_ready_thread(gth_runtime_state_t 
         return NULL;
     }
 
+    if (state->config.policy == GTH_SCHED_RR)
+    {
+        size_t start = (state->last_rr_slot + 1U) % GTH_MAX_THREADS;
+        for (size_t i = 0; i < GTH_MAX_THREADS; ++i)
+        {
+            size_t idx = (start + i) % GTH_MAX_THREADS;
+            gth_thread_record_t *candidate = &state->threads[idx];
+            if (candidate->state == GTH_THREAD_READY)
+            {
+                state->last_rr_slot = idx;
+                return candidate;
+            }
+        }
+        return NULL;
+    }
+
+    /* Priority scheduling */
     for (size_t i = 0; i < GTH_MAX_THREADS; ++i)
     {
         gth_thread_record_t *candidate = &state->threads[i];
@@ -39,26 +56,13 @@ static gth_thread_record_t *gth_scheduler_pick_ready_thread(gth_runtime_state_t 
             continue;
         }
 
-        if (state->config.policy == GTH_SCHED_PRIORITY)
+        if (candidate->priority > best->priority)
         {
-            if (candidate->priority > best->priority)
-            {
-                best = candidate;
-                continue;
-            }
-
-            if (candidate->priority == best->priority && candidate->tid < best->tid)
-            {
-                best = candidate;
-                continue;
-            }
+            best = candidate;
         }
-        else
+        else if (candidate->priority == best->priority && candidate->tid < best->tid)
         {
-            if (candidate->tid < best->tid)
-            {
-                best = candidate;
-            }
+            best = candidate;
         }
     }
 
@@ -219,6 +223,10 @@ gth_status_t gth_scheduler_run_until(gth_tid_t tid)
     gth_thread_record_t *target = NULL;
 
     if (state == NULL || !state->initialized)
+    {
+        return GTH_ESTATE;
+    }
+    if (tid == state->current_tid && tid != 0U)
     {
         return GTH_ESTATE;
     }

@@ -229,6 +229,11 @@ gth_status_t gth_thread_cancel(gth_tid_t tid)
 
     gth_trace_thread_cancel(tid);
 
+    if (thread->state == GTH_THREAD_BLOCKED)
+    {
+        gth_thread_unblock_slot(thread->slot_index);
+    }
+
     gth_runtime_set_thread_state(state, thread, GTH_THREAD_CANCELED);
     thread->retval = NULL;
     return GTH_OK;

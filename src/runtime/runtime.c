@@ -128,7 +128,7 @@ gth_status_t gth_runtime_begin_shutdown(void)
 
 gth_status_t gth_runtime_init(const gth_runtime_config_t *config)
 {
-    if (!gth_config_is_valid(config))
+    if (config == NULL || !gth_config_is_valid(config))
     {
         return GTH_EINVAL;
     }
@@ -150,6 +150,7 @@ gth_status_t gth_runtime_init(const gth_runtime_config_t *config)
     g_state.finished_threads = 0U;
     g_state.trace_enabled = 0;
 
+    g_state.last_rr_slot = GTH_MAX_THREADS - 1U;
     return GTH_OK;
 }
 

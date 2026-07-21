@@ -70,9 +70,14 @@ gth_status_t gth_sem_wait(gth_sem_t *s)
             return GTH_EBUSY;
         }
 
+        gth_runtime_state_t *state = gth_runtime_state();
+        gth_thread_record_t *current = &state->threads[my_slot];
+
+        current->state = GTH_THREAD_BLOCKED;
+        state->blocked_threads += 1U;
         gth_wq_enqueue(&impl->wq, (uint8_t)my_slot);
         gth_trace_sem_wait(gth_thread_self(), (const void *)s, 0U);
-        gth_thread_block();
+        gth_ctx_swap(&current->ctx, &state->scheduler_ctx);
     }
     else
     {
@@ -108,6 +113,10 @@ gth_status_t gth_sem_post(gth_sem_t *s)
     }
     else
     {
+        if (impl->count == UINT32_MAX)
+        {
+            return GTH_EINVAL;
+        }
         impl->count += 1U;
     }
 
@@ -122,9 +131,15 @@ gth_status_t gth_sem_destroy(gth_sem_t *s)
         return GTH_EINVAL;
     }
 
-    if (gth_sem_cimpl(s)->initialized == 0U)
+    const gth_sem_impl_t *impl = gth_sem_cimpl(s);
+    if (impl->initialized == 0U)
     {
         return GTH_ESTATE;
+    }
+
+    if (!gth_wq_is_empty(&impl->wq))
+    {
+        return GTH_EBUSY;
     }
 
     memset(s, 0, sizeof(*s));

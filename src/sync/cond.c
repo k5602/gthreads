@@ -66,20 +66,27 @@ gth_status_t gth_cond_wait(gth_cond_t *c, gth_mutex_t *m)
         return GTH_EBUSY;
     }
 
+    gth_runtime_state_t *state = gth_runtime_state();
+    gth_thread_record_t *current = &state->threads[my_slot];
+
+    current->state = GTH_THREAD_BLOCKED;
+    state->blocked_threads += 1U;
     gth_wq_enqueue(&impl->wq, (uint8_t)my_slot);
     gth_trace_cond_wait(gth_thread_self(), (const void *)c);
 
     status = gth_mutex_unlock(m);
     if (status != GTH_OK)
     {
-        /* Remove stale WQ entry -- the thread will never block, so
-         * leaving the slot in the queue would cause a spurious wakeup
-         * or a stale-ptr dereference when signal/broadcast runs. */
+        current->state = GTH_THREAD_RUNNING;
+        if (state->blocked_threads > 0U)
+        {
+            state->blocked_threads -= 1U;
+        }
         gth_wq_remove(&impl->wq, (uint8_t)my_slot);
         return status;
     }
 
-    gth_thread_block();
+    gth_ctx_swap(&current->ctx, &state->scheduler_ctx);
 
     status = gth_mutex_lock(m);
     return status;

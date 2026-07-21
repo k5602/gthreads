@@ -62,7 +62,7 @@ gth_status_t gth_mutex_lock(gth_mutex_t *m)
 
     if (impl->locked != 0U)
     {
-        if (impl->owner == gth_thread_self() && impl->owner != 0U)
+        if (impl->owner == gth_thread_self())
         {
             return GTH_EBUSY;
         }
@@ -84,6 +84,10 @@ gth_status_t gth_mutex_lock(gth_mutex_t *m)
 
         while (impl->locked != 0U)
         {
+            if (gth_wq_is_full(&impl->wq))
+            {
+                return GTH_EBUSY;
+            }
             gth_wq_enqueue(&impl->wq, (uint8_t)my_slot);
             gth_thread_block();
         }

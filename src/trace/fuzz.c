@@ -33,22 +33,6 @@
 #define GTH_FUZZ_WARMUP_DECISIONS 5U
 
 /*
- * Get current timestamp for seed mixing (using rdtsc if available)
- */
-static uint64_t gth_fuzz_timestamp(void)
-{
-#if defined(__x86_64__) || defined(__i386__)
-    uint32_t lo, hi;
-    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
-    return ((uint64_t)hi << 32) | lo;
-#else
-    /* Fallback: use address of local variable as entropy */
-    uint64_t addr = (uint64_t)(uintptr_t)&addr;
-    return addr ^ 0x5F3759DFULL; /* Arbitrary constant */
-#endif
-}
-
-/*
  * Initialize xorshift128+ state from seed
  */
 static void gth_fuzz_seed(gth_fuzz_state_t *fuzz, uint64_t seed)
@@ -62,7 +46,7 @@ static void gth_fuzz_seed(gth_fuzz_state_t *fuzz, uint64_t seed)
     fuzz->state[1] = fuzz->state[0] + XSHIFT_PLUS;
 
     /* Additional mixing */
-    fuzz->state[0] ^= gth_fuzz_timestamp();
+    fuzz->state[0] ^= (z >> 33);
 }
 
 /*
@@ -150,7 +134,7 @@ uint64_t gth_fuzz_random(void)
  */
 static uint64_t gth_fuzz_random_range(gth_fuzz_state_t *fuzz, uint64_t max)
 {
-    if (max == 0)
+    if (fuzz == NULL || max == 0)
     {
         return 0;
     }

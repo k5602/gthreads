@@ -190,6 +190,7 @@ gth_status_t gth_trace_start(const char *trace_path)
     if (status != GTH_OK)
     {
         fclose(state->trace->file);
+        state->trace->file = NULL;
         gth_trace_cleanup();
         return status;
     }
@@ -200,6 +201,7 @@ gth_status_t gth_trace_start(const char *trace_path)
     if (state->trace->buffer == NULL)
     {
         fclose(state->trace->file);
+        state->trace->file = NULL;
         gth_trace_cleanup();
         return GTH_ENOMEM;
     }

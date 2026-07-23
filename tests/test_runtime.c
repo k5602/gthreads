@@ -89,6 +89,7 @@ void test_runtime_executes_and_joins_threads(void **state)
     assert_int_equal(stats.blocked_threads, 0U);
 
     runtime_assert_shutdown_ok();
+    runtime_assert_shutdown_clears_stats();
 }
 
 static void *runtime_mass_stress_thread(void *arg)

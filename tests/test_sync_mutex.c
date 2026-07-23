@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include <cmocka.h>
 
@@ -109,7 +110,8 @@ static void *mutex_blocker_fn(void *arg)
 static void *mutex_waiter_fn(void *arg)
 {
     (void)arg;
-    gth_mutex_lock(&g_mutex_block_m);
+    gth_status_t status = gth_mutex_lock(&g_mutex_block_m);
+    assert_int_equal(status, GTH_OK);
     g_mutex_block_flag = 2;
     gth_mutex_unlock(&g_mutex_block_m);
     return NULL;

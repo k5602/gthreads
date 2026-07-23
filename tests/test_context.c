@@ -242,8 +242,6 @@ void test_replay_and_trace_interfaces_validate_paths(void **state)
     assert_runtime_shutdown_ok();
 }
 
-static uint64_t g_context_yield_counter;
-
 static void *context_yielding_thread(void *arg)
 {
     uint64_t *shared = (uint64_t *)arg;

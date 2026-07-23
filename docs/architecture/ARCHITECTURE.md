@@ -61,6 +61,10 @@ typedef struct {
     gth_tid_t next_tid;          // Monotonically increasing, starts at 1
     gth_tid_t current_tid;       // TID of the currently running thread
     uint64_t context_switches;   // Total context switches since init
+    uint32_t runnable_threads;   // Count of READY threads
+    uint32_t blocked_threads;    // Count of BLOCKED threads
+    uint32_t finished_threads;   // Count of DONE threads
+    size_t last_rr_slot;         // Last slot index picked by Round-Robin scheduler
     gth_ctx_t scheduler_ctx;     // Scheduler's own context (FPU-free)
     gth_thread_record_t threads[GTH_MAX_THREADS]; // Thread slot table
 
@@ -91,25 +95,26 @@ typedef struct {
 
 ### gth_ctx_t
 
-CPU register save area for cooperative context switching on x86_64. Contains 8 callee-saved registers (RBX, RBP, R12-R15, RSP, RIP) plus a pointer to a 512-byte FXSAVE area for SSE/x87 state.
+CPU register save area for cooperative context switching on x86_64. Contains 8 callee-saved registers (RBX, RBP, R12-R15, RSP, RIP) plus an embedded 512-byte `_Alignas(16)` FXSAVE buffer for SSE/x87 state (eliminating dynamic heap allocations and FPU memory leaks).
 
 ```c
 typedef struct {
-    void *regs[8];       // [0]=RBX [1]=RBP [2]=R12 [3]=R13
-                         // [4]=R14 [5]=R15 [6]=RSP [7]=RIP
-    void *fxsave_area;   // 16-byte aligned, 512 bytes
+    void *regs[8];                       // [0]=RBX [1]=RBP [2]=R12 [3]=R13
+                                         // [4]=R14 [5]=R15 [6]=RSP [7]=RIP
+    void *fxsave_area;                   // Pointer to embedded fxsave_buf
+    _Alignas(16) uint8_t fxsave_buf[512];// Embedded 16-byte aligned FPU buffer
 } gth_ctx_t;
 ```
 
-## Context Switching Flow
+## Context Switching Flow & ABI Compliance
 
 1. **Yield/block**: Thread calls `gth_thread_yield()` or blocks on a sync primitive.
 2. **State save**: `gth_ctx_swap(&current->ctx, &scheduler_ctx)` saves callee-saved registers into the thread's `gth_ctx_t` and restores the scheduler context.
-3. **Scheduler picks next**: `gth_scheduler_pick_ready_thread_mode()` selects the next READY thread based on the active mode (normal RR, priority, trace replay, or fuzz).
+3. **Scheduler picks next**: `gth_scheduler_pick_ready_thread_mode()` selects the next READY thread based on the active mode (fair Round-Robin via `last_rr_slot`, priority, trace replay, or fuzz).
 4. **State restore**: `gth_ctx_swap(&scheduler_ctx, &next->ctx)` saves the scheduler state and restores the next thread's registers.
 5. **Thread resumes**: The CPU continues executing the new thread from where it was last saved.
 
-First-time thread entry uses `gth_ctx_make()` to set up the initial context with RIP pointing to the trampoline function, which calls the user's entry function with the slot index.
+First-time thread entry uses `gth_ctx_make()` in assembly (`ctx_x86_64.S`) to set up the initial context. The 64-bit `slot_index` is passed directly in `%rcx` per System V AMD64 ABI standards and stored into `%rax+8` (`fxsave_area`). RIP points to `gth_context_thread_trampoline(size_t slot_index_arg)`, which calls the user's entry function.
 
 ## Thread Lifecycle
 
@@ -140,30 +145,31 @@ The scheduler supports four operating modes, selected at runtime:
 | **REPLAY** | Scheduling decisions are driven by a previously recorded trace. |
 | **FUZZ** | Scheduling is perturbed by a PRNG to explore different interleavings. |
 
-## Synchronization Primitives
+## Synchronization Primitives & Lost-Wakeup Prevention
 
-All sync objects are opaque, inline-allocated structs (no heap allocation). They use the runtime's internal thread-blocking mechanism.
+All sync objects are opaque, inline-allocated structs (no heap allocation). They use the runtime's internal thread-blocking mechanism with atomic state updates to guarantee lost-wakeup immunity.
 
-| Primitive | Operations | Blocking Semantics |
-|-----------|------------|--------------------|
-| **Mutex** | lock, trylock, unlock, destroy | Blocks on lock contention. FIFO wake order. |
-| **Semaphore** | init, wait, post, destroy | Counting semaphore. Blocks when count is zero. |
-| **Condition Variable** | wait, signal, broadcast, destroy | Atomically releases mutex and blocks. |
+| Primitive | Operations | Blocking Semantics & Race Invariants |
+|-----------|------------|--------------------------------------|
+| **Mutex** | lock, trylock, unlock, destroy | Blocks on lock contention. `gth_wq_is_full()` bounds checks prevent silent queue drops. Main thread (TID 0) non-blocking locks supported. |
+| **Semaphore** | init, wait, post, destroy | Counting semaphore. Candidate threads mark state as `GTH_THREAD_BLOCKED` before enqueuing to prevent lost wakeup races. `UINT32_MAX` overflow checks. `gth_sem_destroy()` verifies `!gth_wq_is_empty()`. |
+| **Condition Variable** | wait, signal, broadcast, destroy | Atomically transitions thread to `GTH_THREAD_BLOCKED` prior to releasing mutex, ensuring interleaved signals unblock waiters cleanly. |
 
 When a thread blocks on a sync primitive:
-1. Its state transitions from RUNNING to BLOCKED.
-2. The scheduler is invoked to pick the next READY thread.
-3. When the primitive is released, the blocked thread transitions back to READY.
+1. Its state transitions from `GTH_THREAD_RUNNING` to `GTH_THREAD_BLOCKED` *before* context swapping or queue publication.
+2. The scheduler is invoked to pick the next `GTH_THREAD_READY` thread.
+3. When the primitive is unblocked/signaled, `gth_thread_unblock_slot()` transitions the thread back to `GTH_THREAD_READY`.
 
 ## Trace / Replay / Fuzz System
 
-### Trace Recording
+### Trace Recording & Resource Safety
 
 When `gth_trace_start()` is called, the runtime enters RECORD mode. Every scheduling decision, context switch, and synchronization event is captured to a binary trace file.
 
-**Trace file format (v2)**:
-- 32-byte header: magic ("GTR2"), version, creation time, timestamp frequency.
-- 32-byte event records: timestamp, event type, TID, slot index, event data, FNV-1a checksum.
+- **Double-Close Safety**: Trace cleanup sets `state->trace->file = NULL` immediately following `fclose()` to prevent invalid handle double-free bugs during runtime shutdown.
+- **Trace file format (v2)**:
+  - 32-byte header: magic ("GTR2"), version, creation time, timestamp frequency.
+  - 32-byte event records: timestamp, event type, TID, slot index, event data, FNV-1a checksum.
 
 Buffered writes (256 records per flush) minimize I/O overhead.
 
@@ -171,18 +177,18 @@ Buffered writes (256 records per flush) minimize I/O overhead.
 
 `gth_replay_from()` loads a trace file and enters REPLAY mode. The scheduler selects threads based on the recorded event sequence rather than the normal scheduling policy. This allows exact reproduction of a previously observed execution.
 
-Divergence detection: if the runtime attempts to consume an event that does not match the expected type/TID, the replay is marked as diverged.
+Divergence detection: if the runtime attempts to consume an event that does not match the expected type/TID, the replay is marked as diverged (`GTH_ENOTFOUND`).
 
 ### Schedule Fuzzing
 
-Fuzz mode uses an xorshift128+ PRNG to randomly perturb scheduling decisions. The perturbation rate is configurable (0-100%). Same seed produces same execution, enabling reproducible fuzzing.
+Fuzz mode uses an xorshift128+ PRNG to randomly perturb scheduling decisions. The perturbation rate is configurable (0-100%). Seed initialization uses pure SplitMix64 mixing without non-deterministic `rdtsc` timestamp XOR contamination, guaranteeing exact execution reproducibility across runs with identical seeds.
 
 ## Memory Management
 
-- **Thread stacks**: Each thread gets a stack allocated via `mmap` with a guard page (`mprotect` PROT_NONE) to detect overflow. Default size is 64 KB.
-- **Thread table**: Fixed-size array of 128 slots (no heap allocation).
-- **Sync objects**: All storage is inline within the opaque struct. No heap allocation.
-- **Trace buffers**: Heap-allocated during trace recording, freed on stop.
+- **Thread stacks**: Each thread gets a stack allocated via `mmap` with a guard page (`mprotect` PROT_NONE) to detect overflow. System `sysconf(_SC_PAGESIZE)` is cached at startup to optimize allocation speed. Upper stack limit is bounded by `GTH_MAX_STACK_SIZE` (64 MiB).
+- **Thread table**: Fixed-size array of 128 slots (`GTH_MAX_THREADS`) with static `_Alignas(16)` structural alignment.
+- **Sync objects**: All storage is inline within opaque structs. No heap allocation.
+- **Trace buffers**: Heap-allocated during trace recording, safely freed on stop.
 
 ## Build Instructions
 

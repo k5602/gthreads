@@ -24,14 +24,14 @@ Requires: Linux x86_64, CMake >= 3.20, GCC/Clang (C17), `libcmocka-dev`.
 
 ## Performance
 
-Measured on Intel i5-12500H (4.2 GHz):
+Measured baseline latency under ASan/UBSan instrumentation:
 
-| Operation | Latency |
-|-----------|---------|
-| Context switch (yield) | ~140-180 ns |
-| Thread create + join | ~5,300 ns |
-| Mutex lock + unlock | ~21 ns |
-| Semaphore wait + post | ~19 ns |
+| Operation | Latency / Throughput |
+|-----------|----------------------|
+| Context switch (yield) | ~330 ns |
+| Thread create + join | ~6,000 ns |
+| Mutex lock + unlock | ~160 ns |
+| Semaphore wait + post | ~210 ns (4.6M ops/sec) |
 
 ## Quick start
 

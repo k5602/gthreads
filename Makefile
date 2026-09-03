@@ -86,6 +86,9 @@ distclean: clean
 	@echo "Removing CMake cache and artifacts..."
 	@find . -name "CMakeCache.txt" -delete
 	@find . -name "CMakeFiles" -type d -exec rm -rf {} + 2>/dev/null || true
+	@find . -name "cmake_install.cmake" -delete
+	@find . -name "CTestTestfile.cmake" -delete
+	@find . -name "compile_commands.json" -delete
 	@find . -name ".cmake" -type d -exec rm -rf {} + 2>/dev/null || true
 	@find . -name "Testing" -type d -exec rm -rf {} + 2>/dev/null || true
 

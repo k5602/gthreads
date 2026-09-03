@@ -35,28 +35,25 @@ Date: 2026-03-02
 | Stability | TDD-015 | Performance | Context-switch benchmark | Stable baseline metric generated |
 | Stability | TDD-016 | Stress | Mixed sync + replay workload | No deadlock, no crash, deterministic replay passes |
 
-## Test File Draft Map
+## Test File Map
 
-- `tests/unit/test_api_validation.c`
-- `tests/unit/test_queue.c`
-- `tests/integration/test_lifecycle.c`
-- `tests/integration/test_scheduler_rr.c`
-- `tests/integration/test_scheduler_priority.c`
-- `tests/integration/test_sync_mutex.c`
-- `tests/integration/test_sync_sem.c`
-- `tests/integration/test_sync_cond.c`
-- `tests/replay/test_trace_capture.c`
-- `tests/replay/test_trace_replay.c`
-- `tests/replay/test_fuzz_seed_determinism.c`
-- `tests/replay/test_replay_regressions.c`
-- `tests/stress/test_mass_threads.c`
+Actual layout is flat under `tests/` (single `gthreads_tests` binary):
+
+- `tests/test_api_validation.c` - input validation, error codes
+- `tests/test_runtime.c` - lifecycle, join/cancel, mass 1000-thread stress
+- `tests/test_context.c` - context switch, stack guard contract
+- `tests/test_sync_mutex.c` - mutex contention
+- `tests/test_sync_sem.c` - semaphore producer/consumer
+- `tests/test_sync_cond.c` - cond wait/signal ordering
+- `tests/test_trace_replay.c` - trace capture, replay, fuzz determinism
+- `tests/test_main.c`, `tests/test_support.h` - runner and shared helpers
 
 ## Deterministic Replay Regression Policy
 
 Any concurrency bug found in stress/fuzz testing must be converted into:
 
-1. A trace artifact (`tests/replay/traces/<bug-id>.gthtrace`)
-2. A replay regression test (`tests/replay/test_bug_<bug-id>.c`)
+1. A trace artifact (`tests/traces/<bug-id>.gthtrace`)
+2. A replay regression test in `tests/test_trace_replay.c` (`test_bug_<bug-id>`)
 3. A short root-cause note in `docs/testing/replay-regressions.md`
 
 Regression tests should be deterministic and should assert:
@@ -66,10 +63,10 @@ Regression tests should be deterministic and should assert:
 - Scheduler behavior remains bounded for equal-priority workloads
 - Stack-related validation fails before any thread starts
 
-## Validation Commands (draft)
+## Validation Commands
 
-Exact commands will be finalized once build files are added. Target checks:
-
-- Debug build with sanitizers
-- Full test suite run
-- Replay-regression subset run
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+ctest --test-dir build --output-on-failure
+```

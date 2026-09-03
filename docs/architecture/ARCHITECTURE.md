@@ -61,9 +61,9 @@ typedef struct {
     gth_tid_t next_tid;          // Monotonically increasing, starts at 1
     gth_tid_t current_tid;       // TID of the currently running thread
     uint64_t context_switches;   // Total context switches since init
-    uint32_t runnable_threads;   // Count of READY threads
-    uint32_t blocked_threads;    // Count of BLOCKED threads
-    uint32_t finished_threads;   // Count of DONE threads
+    uint64_t runnable_threads;   // Count of READY threads
+    uint64_t blocked_threads;    // Count of BLOCKED threads
+    uint64_t finished_threads;   // Count of DONE threads
     size_t last_rr_slot;         // Last slot index picked by Round-Robin scheduler
     gth_ctx_t scheduler_ctx;     // Scheduler's own context (FPU-free)
     gth_thread_record_t threads[GTH_MAX_THREADS]; // Thread slot table

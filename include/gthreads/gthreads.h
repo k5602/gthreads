@@ -177,14 +177,15 @@ extern "C"
      *
      * If the target thread has already finished, gth_thread_join() returns
      * immediately. A thread may only be joined once; joining a thread that
-     * is already joined returns GTH_ESTATE.
+     * is already joined returns GTH_ENOTFOUND because the slot is released.
      *
      * \param[in]  tid     TID of the thread to join.
      * \param[out] retval  Receives the thread's return value, or NULL to ignore.
      *
      * \retval GTH_OK       Join completed; *retval set (if non-NULL).
      * \retval GTH_EINVAL   \p tid is 0 (invalid TID).
-     * \retval GTH_ESTATE   Thread not found, already joined, or runtime not running.
+     * \retval GTH_ENOTFOUND Thread not found or already joined.
+     * \retval GTH_ESTATE   Runtime not running or cannot join self.
      */
     gth_status_t gth_thread_join(gth_tid_t tid, void **retval);
 
@@ -198,7 +199,8 @@ extern "C"
      *
      * \retval GTH_OK       Cancellation requested.
      * \retval GTH_EINVAL   \p tid is 0 (invalid TID).
-     * \retval GTH_ESTATE   Thread not found or already finished.
+     * \retval GTH_ENOTFOUND Thread not found.
+     * \retval GTH_ESTATE   Thread already finished or runtime not running.
      */
     gth_status_t gth_thread_cancel(gth_tid_t tid);
 

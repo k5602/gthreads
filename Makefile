@@ -1,4 +1,4 @@
-.PHONY: all build debug release test clean reconfigure format format-check install-hooks help
+.PHONY: all build debug release test clean reconfigure format format-check help
 
 # Default build directory and type
 BUILD_DIR ?= build
@@ -21,7 +21,6 @@ help:
 	@echo ""
 	@echo "Setup & Cleanup:"
 	@echo "  make reconfigure     Reconfigure CMake (forces cmake -S . -B build)"
-	@echo "  make install-hooks   Install git hooks"
 	@echo "  make clean           Remove build directory"
 	@echo "  make distclean       Clean build + CMake cache"
 	@echo ""
@@ -72,11 +71,6 @@ format-check: build
 	@echo "Checking source code formatting..."
 	@cmake --build $(BUILD_DIR) --target format-check
 
-# Git hooks
-install-hooks:
-	@echo "Installing git hooks..."
-	@./scripts/install-hooks.sh
-
 # Cleanup targets
 clean:
 	@echo "Removing build directory..."
@@ -99,5 +93,3 @@ check: format-check test
 all-checks: format-check build test
 	@echo "All checks passed!"
 
-setup: reconfigure install-hooks
-	@echo "Setup complete! Run 'make test' to verify."

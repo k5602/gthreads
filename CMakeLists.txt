@@ -8,6 +8,8 @@ set(CMAKE_C_EXTENSIONS OFF)
 
 find_program(CLANG_FORMAT_BIN clang-format)
 
+option(GTHREADS_BUILD_TESTS "Build gthreads_tests and enable ctest" ON)
+
 option(GTHREADS_ENABLE_SANITIZERS "Enable ASan/UBSan in Debug builds" ON)
 
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
@@ -50,15 +52,19 @@ target_include_directories(gthreads
 								${CMAKE_CURRENT_SOURCE_DIR}/src/internal
 )
 
-enable_testing()
+if(GTHREADS_BUILD_TESTS)
+	enable_testing()
 
-find_path(CMOCKA_INCLUDE_DIR cmocka.h)
-find_library(CMOCKA_LIBRARY NAMES cmocka)
+	find_path(CMOCKA_INCLUDE_DIR cmocka.h)
+	find_library(CMOCKA_LIBRARY NAMES cmocka)
 
-if(NOT CMOCKA_INCLUDE_DIR OR NOT CMOCKA_LIBRARY)
-	message(FATAL_ERROR "CMocka not found. Install libcmocka-dev (or equivalent) to build tests.")
+	if(NOT CMOCKA_INCLUDE_DIR OR NOT CMOCKA_LIBRARY)
+		message(WARNING "CMocka not found. Install libcmocka-dev to build tests; skipping gthreads_tests.")
+	endif()
+
 endif()
 
+if(GTHREADS_BUILD_TESTS AND CMOCKA_INCLUDE_DIR AND CMOCKA_LIBRARY)
 add_executable(gthreads_tests
 				tests/test_main.c
 				tests/test_api_validation.c
@@ -79,6 +85,7 @@ target_include_directories(gthreads_tests
 target_link_libraries(gthreads_tests PRIVATE gthreads ${CMOCKA_LIBRARY})
 
 add_test(NAME gthreads_tests COMMAND gthreads_tests)
+endif()
 
 # Examples
 add_executable(basic_threads examples/basic_threads.c)
@@ -128,6 +135,7 @@ if(CLANG_FORMAT_BIN)
 								tests/test_sync_mutex.c
 								tests/test_sync_sem.c
 								tests/test_sync_cond.c
+								tests/test_trace_replay.c
 								examples/basic_threads.c
 								examples/sync_demo.c
 								examples/trace_replay.c

@@ -20,13 +20,13 @@ jobs:
       - name: Install clang-format
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-format
+          sudo apt-get install -y clang-format cmake
+
+      - name: Configure CMake
+        run: cmake -S . -B build
 
       - name: Check formatting
-        run: |
-          find src/ include/ tests/ \
-            -name '*.c' -o -name '*.h' \
-            | xargs clang-format --dry-run --Werror
+        run: cmake --build build --target format-check
 
   build-and-test:
     name: Build & Test (${{ matrix.compiler }}, ${{ matrix.build_type }})
@@ -36,51 +36,6 @@ jobs:
       matrix:
         compiler: [gcc, clang]
         build_type: [Debug, Release]
-        include:
-          - compiler: gcc
-            cc: gcc
-          - compiler: clang
-            cc: clang
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake build-essential libcmocka-dev ccache
-
-      - name: Set up ccache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ccache
-          key: ccache-${{ matrix.compiler }}-${{ matrix.build_type }}-${{ github.sha }}
-          restore-keys: |
-            ccache-${{ matrix.compiler }}-${{ matrix.build_type }}-
-            ccache-${{ matrix.compiler }}-
-
-      - name: Configure CMake
-        run: |
-          cmake_args="-DCMAKE_C_COMPILER=${{ matrix.cc }}"
-          cmake_args="$cmake_args -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}"
-          if [ "${{ matrix.build_type }}" = "Debug" ]; then
-            cmake_args="$cmake_args -DGTHREADS_ENABLE_SANITIZERS=ON"
-          fi
-          cmake -B build $cmake_args
-
-      - name: Build
-        run: cmake --build build --parallel $(nproc)
-
-      - name: Test
-        run: ctest --test-dir build --output-on-failure
-
-  sanitizer-check:
-    name: Sanitizers (${{ matrix.compiler }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        compiler: [gcc, clang]
         include:
           - compiler: gcc
             cc: gcc
@@ -97,25 +52,19 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake build-essential libcmocka-dev ccache
+          sudo apt-get install -y cmake build-essential libcmocka-dev
 
-      - name: Set up ccache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ccache
-          key: ccache-sanitizer-${{ matrix.compiler }}-${{ github.sha }}
-          restore-keys: |
-            ccache-sanitizer-${{ matrix.compiler }}-
-
-      - name: Configure CMake (Debug + Sanitizers)
+      - name: Configure CMake
         run: |
-          cmake -B build \
-            -DCMAKE_C_COMPILER=${{ matrix.cc }} \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DGTHREADS_ENABLE_SANITIZERS=ON
+          cmake_args="-DCMAKE_C_COMPILER=${{ matrix.cc }}"
+          cmake_args="$cmake_args -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}"
+          if [ "${{ matrix.build_type }}" = "Debug" ]; then
+            cmake_args="$cmake_args -DGTHREADS_ENABLE_SANITIZERS=ON"
+          fi
+          cmake -B build $cmake_args
 
       - name: Build
         run: cmake --build build --parallel $(nproc)
 
-      - name: Test with sanitizers
+      - name: Test
         run: ctest --test-dir build --output-on-failure

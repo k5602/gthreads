@@ -6,7 +6,7 @@
 
 A deterministic user-space threading runtime in C17 & x86_64 assembly for Linux.
 
-![gthreads demo](assets/demo.gif)
+![gthreads demo](docs/assets/demo.gif)
 
 ## Why I Built This
 
@@ -113,5 +113,4 @@ Requires: Linux x86_64, CMake >= 3.20, GCC/Clang (C17), `libcmocka-dev`.
 
 ## Documentation
 
-- [Architecture Design](docs/architecture/ARCHITECTURE.md) - Deep dive into stack allocation, context switching flow, ABI alignment, and internal state.
-- [TDD Matrix](docs/testing/TDD-MATRIX.md) - Test coverage matrix across lifecycle, scheduler, and sync primitives.
+- [Architecture Design](docs/ARCHITECTURE.md) - Deep dive into stack allocation, context switching flow, ABI alignment, and internal state.

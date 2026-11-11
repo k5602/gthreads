@@ -120,9 +120,9 @@ extern "C"
         uint64_t blocked_threads;
         uint64_t finished_threads;
         int trace_enabled;
-        /* Intentionally zero-initialized: scheduler_ctx.fxsave_area is NULL because
-         * the scheduler must remain FPU-free. The scheduler never uses floating-point
-         * or SSE state, so no fxsave buffer is needed or allocated.
+        /* Intentionally zero-initialized: scheduler_ctx.fp_state_area is NULL because
+         * the scheduler must remain FPU-free. The scheduler never uses FP/SSE state,
+         * so no FP state buffer is saved or restored for it.
          */
         gth_ctx_t scheduler_ctx;
         gth_thread_record_t threads[GTH_MAX_THREADS];

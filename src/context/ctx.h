@@ -11,17 +11,21 @@ extern "C"
 
     /*
      * Custom context for cooperative switching on x86_64.
-     * Layout: 8 callee-saved GP registers + pointer to 512-byte fxsave area.
+     * Layout: 8 callee-saved GP registers + pointer to the FPU area.
      *
      * regs layout:
      *   [0] RBX  [1] RBP  [2] R12  [3] R13
      *   [4] R14  [5] R15  [6] RSP  [7] RIP
+     *
+     * fp_state_area is NULL for FPU-free contexts (scheduler), else points at
+     * fp_state_buf. buf holds a full XSAVE area when CPU+OS support it, else a
+     * legacy 512-byte FXSAVE area. >4096-byte XSAVE areas (AMX) force FXSAVE.
      */
     typedef struct
     {
         void *regs[8];
-        void *fxsave_area; /* 16-byte aligned pointer to FPU state buffer */
-        _Alignas(16) uint8_t fxsave_buf[512];
+        void *fp_state_area;
+        _Alignas(64) uint8_t fp_state_buf[4096];
     } gth_ctx_t;
 
     /*

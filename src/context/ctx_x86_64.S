@@ -1,15 +1,14 @@
 /*
- * x86_64 assembly context switching for gthreads.
- *
- * Provides gth_ctx_swap (save/restore) and gth_ctx_make (first-time init).
- * Follows the libaco pattern: save callee-saved GP registers + FPU state.
- *
- * SysV AMD64 ABI callee-saved registers: RBX, RBP, R12-R15.
- * RSP and RIP are saved explicitly.
- * FPU/SSE state (XMM6-XMM15, MXCSR, x87 FCW) saved via fxsave/fxrstor.
+ * x86_64 context switch for gthreads: gth_ctx_swap (save/restore),
+ * gth_ctx_make (first-time init). FPU state: XSAVEOPT if CPU+OS allow,
+ * else FXSAVE; chosen once via gth_fp_xsave_kind / gth_fp_rfbm (context.c).
+ * endbr64 keeps indirect jumps IBT-safe; NOP elsewhere.
  */
 
     .text
+
+    .extern gth_fp_xsave_kind
+    .extern gth_fp_rfbm
 
 /* ------------------------------------------------------------------ */
 /* gth_ctx_swap(gth_ctx_t *from, gth_ctx_t *to)                       */
@@ -18,6 +17,15 @@
     .globl  gth_ctx_swap
     .type   gth_ctx_swap, @function
 gth_ctx_swap:
+    endbr64
+    .cfi_startproc
+    .cfi_undefined %rbx
+    .cfi_undefined %rbp
+    .cfi_undefined %r12
+    .cfi_undefined %r13
+    .cfi_undefined %r14
+    .cfi_undefined %r15
+
     /* Save callee-saved GP registers into from->regs */
     movq    %rbx,    (%rdi)     /* regs[0] = RBX */
     movq    %rbp,   8(%rdi)     /* regs[1] = RBP */
@@ -31,18 +39,34 @@ gth_ctx_swap:
     leaq    1f(%rip), %rax
     movq    %rax,  56(%rdi)     /* regs[7] = RIP */
 
-    /* Save FPU/SSE state if fxsave_area is non-NULL */
-    movq   64(%rdi), %rax       /* rax = from->fxsave_area */
-    testq  %rax, %rax
-    jz     .Lskip_fxsave
-    fxsave (%rax)
-.Lskip_fxsave:
+    /* Save FPU state if fp_state_area is non-NULL */
+    movq   64(%rdi), %r11       /* r11 = from->fp_state_area (volatile) */
+    testq  %r11, %r11
+    jz     .Lskip_fpsave
+    movl   gth_fp_xsave_kind(%rip), %ecx
+    testl  %ecx, %ecx
+    jz     .Lswap_fpsave
+    movl   gth_fp_rfbm(%rip), %eax
+    movl   gth_fp_rfbm + 4(%rip), %edx
+    xsaveopt64 (%r11)
+    jmp    .Lskip_fpsave
+.Lswap_fpsave:
+    fxsave (%r11)
+.Lskip_fpsave:
 
-    /* Restore FPU/SSE state if fxsave_area is non-NULL */
-    movq   64(%rsi), %rax       /* rax = to->fxsave_area */
-    testq  %rax, %rax
+    /* Restore FPU state if fp_state_area is non-NULL */
+    movq   64(%rsi), %r11       /* r11 = to->fp_state_area (volatile) */
+    testq  %r11, %r11
     jz     .Lskip_fxrstor
-    fxrstor (%rax)
+    movl   gth_fp_xsave_kind(%rip), %ecx
+    testl  %ecx, %ecx
+    jz     .Lswap_fxrstor
+    movl   gth_fp_rfbm(%rip), %eax
+    movl   gth_fp_rfbm + 4(%rip), %edx
+    xrstor64 (%r11)
+    jmp    .Lskip_fxrstor
+.Lswap_fxrstor:
+    fxrstor (%r11)
 .Lskip_fxrstor:
 
     /* Restore callee-saved GP registers from to->regs */
@@ -59,8 +83,10 @@ gth_ctx_swap:
 
     /* Resume point: when we are swapped back to, execution lands here */
 1:
+    endbr64
     ret
 
+    .cfi_endproc
     .size   gth_ctx_swap, . - gth_ctx_swap
 
 /* ------------------------------------------------------------------ */
@@ -74,6 +100,9 @@ gth_ctx_swap:
     .globl  gth_ctx_make
     .type   gth_ctx_make, @function
 gth_ctx_make:
+    endbr64
+    .cfi_startproc
+
     /* Zero callee-saved GP registers [0..5] */
     xorq    %rax, %rax
     movq    %rax,    (%rdi)     /* regs[0] = RBX = 0 */
@@ -95,17 +124,23 @@ gth_ctx_make:
     leaq    gth_ctx_trampoline(%rip), %rax
     movq    %rax, 56(%rdi)      /* regs[7] = RIP = trampoline */
 
-    /* Save current FPU state as the initial state for this context.
-     * All-zero fxsave data has an invalid x87 FCW which causes #GP
-     * on fxrstor. Saving the parent's FPU state gives a valid initial
-     * configuration (default FCW, MXCSR, etc.). */
-    movq    64(%rdi), %rax      /* rax = fxsave_area pointer */
-    testq   %rax, %rax
+    /* Seed FP state with creator's value: all-zero state has invalid FCW and faults on restore. */
+    movq    64(%rdi), %r11      /* r11 = fp_state_area pointer (volatile) */
+    testq   %r11, %r11
     jz      .Lmake_done
-    fxsave  (%rax)
+    movl    gth_fp_xsave_kind(%rip), %ecx
+    testl   %ecx, %ecx
+    jz      .Lmake_fpsave
+    movl    gth_fp_rfbm(%rip), %eax
+    movl    gth_fp_rfbm + 4(%rip), %edx
+    xsaveopt64 (%r11)
+    jmp     .Lmake_done
+.Lmake_fpsave:
+    fxsave  (%r11)
 .Lmake_done:
     ret
 
+    .cfi_endproc
     .size   gth_ctx_make, . - gth_ctx_make
 
 /* ------------------------------------------------------------------ */
@@ -114,11 +149,12 @@ gth_ctx_make:
 /* Entered via jmpq from gth_ctx_swap on first context switch.        */
 /* RSP was set by gth_ctx_make to stack_top - 16.                     */
 /* [RSP+0] = entry function pointer                                   */
-/* [RSP+8] = slot_index (sign-extended to 64 bits)                    */
+/* [RSP+8] = slot_index (64-bit size_t)                               */
 /* ------------------------------------------------------------------ */
     .globl  gth_ctx_trampoline
     .type   gth_ctx_trampoline, @function
 gth_ctx_trampoline:
+    endbr64
     movq     (%rsp), %rax       /* rax = entry function pointer */
     movq    8(%rsp), %rdi       /* rdi = slot_index (1st C arg) */
     callq   *%rax               /* call entry(slot_index) */

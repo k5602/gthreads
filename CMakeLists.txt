@@ -82,7 +82,7 @@ target_include_directories(gthreads_tests
 								${CMAKE_CURRENT_SOURCE_DIR}/src/internal
 )
 
-target_link_libraries(gthreads_tests PRIVATE gthreads ${CMOCKA_LIBRARY})
+target_link_libraries(gthreads_tests PRIVATE gthreads ${CMOCKA_LIBRARY} m)
 
 add_test(NAME gthreads_tests COMMAND gthreads_tests)
 endif()

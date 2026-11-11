@@ -23,6 +23,7 @@ void test_mass_thread_creation_limit_is_reported(void **state);
 void test_rr_fairness_regression(void **state);
 void test_lifecycle_stress_regression(void **state);
 void test_context_yield_resumes_correctly(void **state);
+void test_fp_state_survives_context_switch(void **state);
 void test_mass_1000_threads_stress(void **state);
 void test_mutex_mutual_exclusion_with_contention(void **state);
 void test_mutex_trylock_returns_busy_when_held(void **state);
@@ -71,6 +72,7 @@ int main(void)
         cmocka_unit_test(test_rr_fairness_regression),
         cmocka_unit_test(test_lifecycle_stress_regression),
         cmocka_unit_test(test_context_yield_resumes_correctly),
+        cmocka_unit_test(test_fp_state_survives_context_switch),
         cmocka_unit_test(test_mass_1000_threads_stress),
         cmocka_unit_test(test_mutex_mutual_exclusion_with_contention),
         cmocka_unit_test(test_mutex_trylock_returns_busy_when_held),

@@ -58,7 +58,7 @@ flowchart TD
 
 ## Technical Highlights
 
-- **Zero Dependencies & Assembly Context Switch**: Hand-written x86-64 assembly (`src/context/ctx_x86_64.S`) preserving System V AMD64 ABI callee-saved registers. Embedded `_Alignas(16)` 512-byte FPU buffer in `gth_ctx_t` eliminates dynamic heap allocations and FPU state leaks. Thread stacks allocated via `mmap` with `mprotect` guard pages.
+- **Zero Dependencies & Assembly Context Switch**: Hand-written x86-64 assembly (`src/context/ctx_x86_64.S`) preserving System V AMD64 ABI callee-saved registers. Embedded `_Alignas(64)` FPU state buffer (XSAVEOPT with FXSAVE fallback) in `gth_ctx_t` eliminates dynamic heap allocations and FPU state leaks. Thread stacks allocated via `mmap` with `mprotect` guard pages.
 - **Deterministic Replay & Fuzzing**: Binary event recorder (`GTR2` format) and replay engine to reproduce concurrency bugs. Integrated xorshift128+ PRNG for schedule fuzzing with SplitMix64 seed determinism.
 - **Fair Schedulers & Sync Primitives**: Circular Round-Robin (starvation-free) and Priority schedulers. Lost-wakeup immune mutexes, counting semaphores, and condition variables with bounded wait queues.
 - **Empirical Performance**: Verified 100% clean under AddressSanitizer and UndefinedBehaviorSanitizer.

@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <fenv.h>
+
 #include <cmocka.h>
 
 #include "gthreads/gthreads.h"
@@ -278,6 +280,58 @@ void test_context_yield_resumes_correctly(void **state)
 
     assert_int_equal(gth_thread_join(tid, &retval), GTH_OK);
     assert_ptr_equal(retval, (void *)60U);
+
+    assert_runtime_shutdown_ok();
+}
+
+static void *fp_rounding_peer_thread(void *arg)
+{
+    (void)arg;
+    fesetround(FE_DOWNWARD);
+    /* peer hammers FP state while the marker thread yields */
+    for (int i = 0; i < 200; ++i)
+    {
+        volatile double one_third = 1.0 / 3.0;
+        (void)one_third;
+        gth_thread_yield();
+    }
+    fesetround(FE_TONEAREST);
+    return 0;
+}
+
+static void *fp_rounding_marker_thread(void *arg)
+{
+    int *ok = (int *)arg;
+    fesetround(FE_UPWARD);
+    gth_thread_yield();
+    *ok = (fegetround() == FE_UPWARD);
+    fesetround(FE_TONEAREST);
+    return 0;
+}
+
+void test_fp_state_survives_context_switch(void **state)
+{
+    (void)state;
+
+    gth_runtime_config_t cfg = make_valid_config(13U);
+    int ok = 0;
+    gth_tid_t marker = 0U;
+    gth_tid_t peer = 0U;
+
+    fesetround(FE_TONEAREST);
+
+    assert_runtime_started_with_config(cfg);
+
+    assert_int_equal(gth_thread_create(&marker, NULL, fp_rounding_marker_thread, &ok), GTH_OK);
+    assert_int_equal(gth_thread_create(&peer, NULL, fp_rounding_peer_thread, NULL), GTH_OK);
+
+    assert_int_equal(gth_thread_join(marker, NULL), GTH_OK);
+    assert_int_equal(gth_thread_join(peer, NULL), GTH_OK);
+
+    /* marker kept FE_UPWARD across yields despite peer running FE_DOWNWARD */
+    assert_int_equal(ok, 1);
+    /* main thread FP environment untouched by green threads */
+    assert_int_equal(fegetround(), FE_TONEAREST);
 
     assert_runtime_shutdown_ok();
 }

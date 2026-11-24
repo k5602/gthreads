@@ -120,10 +120,7 @@ extern "C"
         uint64_t blocked_threads;
         uint64_t finished_threads;
         int trace_enabled;
-        /* Intentionally zero-initialized: scheduler_ctx.fxsave_area is NULL because
-         * the scheduler must remain FPU-free. The scheduler never uses floating-point
-         * or SSE state, so no fxsave buffer is needed or allocated.
-         */
+        /* Scheduler context saves the caller's FP state on each switch. */
         gth_ctx_t scheduler_ctx;
         gth_thread_record_t threads[GTH_MAX_THREADS];
         size_t last_rr_slot;
@@ -159,6 +156,7 @@ extern "C"
     void gth_stack_free(gth_stack_allocation_t *stack);
 
     /* Context switching */
+    gth_status_t gth_fp_detect(void);
     gth_status_t gth_context_init_thread(gth_ctx_t *ctx, const gth_stack_allocation_t *stack,
                                          size_t slot_index);
     void gth_context_destroy(gth_ctx_t *ctx);

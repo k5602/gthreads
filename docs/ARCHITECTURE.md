@@ -65,7 +65,7 @@ typedef struct {
     uint64_t blocked_threads;    // Count of BLOCKED threads
     uint64_t finished_threads;   // Count of DONE threads
     size_t last_rr_slot;         // Last slot index picked by Round-Robin scheduler
-    gth_ctx_t scheduler_ctx;     // Scheduler's own context (FPU-free)
+    gth_ctx_t scheduler_ctx;     // Caller context, saves/restores caller FP state
     gth_thread_record_t threads[GTH_MAX_THREADS]; // Thread slot table
 
     gth_scheduler_mode_t mode;   // NORMAL | RECORD | REPLAY | FUZZ
@@ -95,14 +95,14 @@ typedef struct {
 
 ### gth_ctx_t
 
-CPU register save area for cooperative context switching on x86_64. Contains 8 callee-saved registers (RBX, RBP, R12-R15, RSP, RIP) plus an embedded 512-byte `_Alignas(16)` FXSAVE buffer for SSE/x87 state (eliminating dynamic heap allocations and FPU memory leaks).
+CPU register save area for cooperative context switching on x86_64. Contains 8 callee-saved registers (RBX, RBP, R12-R15, RSP, RIP) plus an embedded `_Alignas(64)` FPU state buffer (eliminating dynamic heap allocations and FPU memory leaks). The runtime probes XSAVE and OSXSAVE at init: if both CPU and OS support XSAVE, the buffer holds a full XSAVE area (x87 | SSE | AVX | AVX-512, as enabled by XCR0); otherwise it uses a legacy 512-byte FXSAVE area (SSE/x87 only). XSAVEOPT is avoided because its modified optimization is unreliable in userspace. If the XSAVE area exceeds 16384 bytes, runtime init fails with `GTH_EINTERNAL`.
 
 ```c
 typedef struct {
     void *regs[8];                       // [0]=RBX [1]=RBP [2]=R12 [3]=R13
                                          // [4]=R14 [5]=R15 [6]=RSP [7]=RIP
-    void *fxsave_area;                   // Pointer to embedded fxsave_buf
-    _Alignas(16) uint8_t fxsave_buf[512];// Embedded 16-byte aligned FPU buffer
+    void *fp_state_area;              // fp_state_buf, or NULL for discarded contexts
+    _Alignas(64) uint8_t fp_state_buf[16384]; // XSAVE area, or FXSAVE area (fallback)
 } gth_ctx_t;
 ```
 
@@ -114,7 +114,7 @@ typedef struct {
 4. **State restore**: `gth_ctx_swap(&scheduler_ctx, &next->ctx)` saves the scheduler state and restores the next thread's registers.
 5. **Thread resumes**: The CPU continues executing the new thread from where it was last saved.
 
-First-time thread entry uses `gth_ctx_make()` in assembly (`ctx_x86_64.S`) to set up the initial context. The 64-bit `slot_index` is passed directly in `%rcx` per System V AMD64 ABI standards and stored into `%rax+8` (`fxsave_area`). RIP points to `gth_context_thread_trampoline(size_t slot_index_arg)`, which calls the user's entry function.
+First-time thread entry uses `gth_ctx_make()` in assembly (`ctx_x86_64.S`) to set up the initial context. The 64-bit `slot_index` is passed directly in `%rcx` per System V AMD64 ABI standards and stored into `[RSP+8]` on the new stack. RIP points to `gth_context_thread_trampoline(size_t slot_index_arg)`, which calls the user's entry function. The new context's FPU state is seeded with the creator's current state, so the x87 FCW is always valid for the first `xrstor`/`fxrstor`.
 
 ## Thread Lifecycle
 
@@ -186,7 +186,7 @@ Fuzz mode uses an xorshift128+ PRNG to randomly perturb scheduling decisions. Th
 ## Memory Management
 
 - **Thread stacks**: Each thread gets a stack allocated via `mmap` with a guard page (`mprotect` PROT_NONE) to detect overflow. System `sysconf(_SC_PAGESIZE)` is cached at startup to optimize allocation speed. Upper stack limit is bounded by `GTH_MAX_STACK_SIZE` (64 MiB).
-- **Thread table**: Fixed-size array of 128 slots (`GTH_MAX_THREADS`) with static `_Alignas(16)` structural alignment.
+- **Thread table**: Fixed-size array of 128 slots (`GTH_MAX_THREADS`) with static structural alignment driven by `gth_ctx_t` (`_Alignas(64)`).
 - **Sync objects**: All storage is inline within opaque structs. No heap allocation.
 - **Trace buffers**: Heap-allocated during trace recording, safely freed on stop.
 

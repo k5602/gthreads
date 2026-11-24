@@ -138,7 +138,14 @@ gth_status_t gth_runtime_init(const gth_runtime_config_t *config)
         return GTH_ESTATE;
     }
 
+    gth_status_t fp_status = gth_fp_detect();
+    if (fp_status != GTH_OK)
+    {
+        return fp_status;
+    }
+
     memset(&g_state, 0, sizeof(g_state));
+    g_state.scheduler_ctx.fp_state_area = g_state.scheduler_ctx.fp_state_buf;
     g_state.initialized = 1;
     g_state.shutting_down = 0;
     g_state.config = *config;

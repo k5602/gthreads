@@ -95,14 +95,14 @@ typedef struct {
 
 ### gth_ctx_t
 
-CPU register save area for cooperative context switching on x86_64. Contains 8 callee-saved registers (RBX, RBP, R12-R15, RSP, RIP) plus an embedded `_Alignas(64)` FPU state buffer (eliminating dynamic heap allocations and FPU memory leaks). The runtime probes XSAVE and OSXSAVE at init: if both CPU and OS support XSAVE, the buffer holds a full XSAVE area (x87 | SSE | AVX | AVX-512, as enabled by XCR0); otherwise it uses a legacy 512-byte FXSAVE area (SSE/x87 only). XSAVEOPT is avoided because its modified optimization is unreliable in userspace. If the XSAVE area exceeds 4096 bytes (e.g. AMX), runtime init fails with `GTH_EINTERNAL`.
+CPU register save area for cooperative context switching on x86_64. Contains 8 callee-saved registers (RBX, RBP, R12-R15, RSP, RIP) plus an embedded `_Alignas(64)` FPU state buffer (eliminating dynamic heap allocations and FPU memory leaks). The runtime probes XSAVE and OSXSAVE at init: if both CPU and OS support XSAVE, the buffer holds a full XSAVE area (x87 | SSE | AVX | AVX-512, as enabled by XCR0); otherwise it uses a legacy 512-byte FXSAVE area (SSE/x87 only). XSAVEOPT is avoided because its modified optimization is unreliable in userspace. If the XSAVE area exceeds 16384 bytes, runtime init fails with `GTH_EINTERNAL`.
 
 ```c
 typedef struct {
     void *regs[8];                       // [0]=RBX [1]=RBP [2]=R12 [3]=R13
                                          // [4]=R14 [5]=R15 [6]=RSP [7]=RIP
     void *fp_state_area;              // fp_state_buf, or NULL for discarded contexts
-    _Alignas(64) uint8_t fp_state_buf[4096]; // XSAVE area, or FXSAVE area (fallback)
+    _Alignas(64) uint8_t fp_state_buf[16384]; // XSAVE area, or FXSAVE area (fallback)
 } gth_ctx_t;
 ```
 

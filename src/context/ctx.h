@@ -19,13 +19,13 @@ extern "C"
      *
      * fp_state_area is NULL for FPU-free contexts (scheduler), else points at
      * fp_state_buf. buf holds a full XSAVE area when CPU+OS support it, else a
-     * legacy 512-byte FXSAVE area. >4096-byte XSAVE areas (AMX) force FXSAVE.
+     * legacy 512-byte FXSAVE area. Oversized XSAVE areas fail init.
      */
     typedef struct
     {
         void *regs[8];
         void *fp_state_area;
-        _Alignas(64) uint8_t fp_state_buf[4096];
+        _Alignas(64) uint8_t fp_state_buf[16384];
     } gth_ctx_t;
 
     /*

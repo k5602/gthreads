@@ -2,14 +2,13 @@
 
 #include "runtime_state.h"
 
-/* FP save path: XSAVEOPT when CPU+OS support it, FXSAVE otherwise.
- * Process-wide choice made once at first context creation. */
+/* FP save path: XSAVE when CPU+OS support it, FXSAVE otherwise. */
 #if defined(__x86_64__) && (defined(__GNUC__) || defined(__clang__))
 
-uint32_t gth_fp_xsave_kind = 0; /* 0 = fxsave, 1 = xsaveopt */
+uint32_t gth_fp_xsave_kind = 0; /* 0 = fxsave, 1 = xsave */
 uint64_t gth_fp_rfbm = 0;       /* EDX:EAX RFBM mask for the asm */
 
-#define GTH_CPUID1_ECX_XSAVE (1u << 26)
+#define GTH_CPUID1_ECX_XSAVE (3u << 26) /* XSAVE + OSXSAVE */
 
 static uint64_t gth_xgetbv0(void)
 {
@@ -32,29 +31,24 @@ static void gth_cpuid(uint32_t leaf, uint32_t subleaf, uint32_t out[4])
     out[3] = d;
 }
 
-static void gth_fp_detect(void)
+gth_status_t gth_fp_detect(void)
 {
-    static int done;
     uint32_t out[4];
 
-    if (done)
-    {
-        return;
-    }
-    done = 1;
+    gth_fp_xsave_kind = 0U;
+    gth_fp_rfbm = 0U;
 
     gth_cpuid(1, 0, out);
-    if ((out[2] & GTH_CPUID1_ECX_XSAVE) == 0U)
+    if ((out[2] & GTH_CPUID1_ECX_XSAVE) != GTH_CPUID1_ECX_XSAVE)
     {
-        return; /* no XSAVE hardware: keep FXSAVE */
+        return GTH_OK; /* no XSAVE hardware or no OS support: FXSAVE */
     }
 
     gth_cpuid(0x0D, 0, out);
     const uint64_t supported = ((uint64_t)out[3] << 32) | (uint64_t)out[0];
     const uint64_t rfbm = supported & gth_xgetbv0();
 
-    /* area size: legacy 512 + 64-byte XSAVE header, grown per component */
-    uint64_t size = 576U;
+    uint64_t size = 576U; /* legacy 512 + XSAVE header 64 */
     for (uint32_t i = 2; i < 64U; ++i)
     {
         if ((rfbm & (1ULL << i)) == 0ULL)
@@ -62,27 +56,32 @@ static void gth_fp_detect(void)
             continue;
         }
         gth_cpuid(0x0D, i, out);
-        const uint64_t component_size = (uint64_t)out[0];
-        const uint64_t component_offset = (uint64_t)out[1];
-        if (component_size != 0ULL && component_offset + component_size > size)
+        const uint64_t end = (uint64_t)out[1] + (uint64_t)out[0];
+        if (out[0] != 0U && end > size)
         {
-            size = component_offset + component_size;
+            size = end;
         }
     }
 
-    if (rfbm == 0ULL || size > sizeof(((gth_ctx_t *)0)->fp_state_buf))
+    if (rfbm == 0ULL)
     {
-        return; /* OS disabled everything, or area too big: keep FXSAVE */
+        return GTH_OK;
+    }
+    if (size > sizeof(((gth_ctx_t *)0)->fp_state_buf))
+    {
+        return GTH_EINTERNAL; /* enabled state does not fit: no silent FXSAVE fallback */
     }
 
     gth_fp_rfbm = rfbm;
     gth_fp_xsave_kind = 1U;
+    return GTH_OK;
 }
 
 #else
 
-static void gth_fp_detect(void)
+gth_status_t gth_fp_detect(void)
 {
+    return GTH_OK;
 }
 
 #endif
@@ -95,7 +94,6 @@ gth_status_t gth_context_init_thread(gth_ctx_t *ctx, const gth_stack_allocation_
         return GTH_EINVAL;
     }
 
-    gth_fp_detect();
     ctx->fp_state_area = ctx->fp_state_buf;
 
     /*

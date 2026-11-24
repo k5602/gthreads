@@ -1,6 +1,6 @@
 /*
  * x86_64 context switch for gthreads: gth_ctx_swap (save/restore),
- * gth_ctx_make (first-time init). FPU state: XSAVEOPT if CPU+OS allow,
+ * gth_ctx_make (first-time init). FPU state: XSAVE if CPU+OS allow,
  * else FXSAVE; chosen once via gth_fp_xsave_kind / gth_fp_rfbm (context.c).
  * endbr64 keeps indirect jumps IBT-safe; NOP elsewhere.
  */
@@ -48,7 +48,7 @@ gth_ctx_swap:
     jz     .Lswap_fpsave
     movl   gth_fp_rfbm(%rip), %eax
     movl   gth_fp_rfbm + 4(%rip), %edx
-    xsaveopt64 (%r11)
+    xsave64 (%r11)
     jmp    .Lskip_fpsave
 .Lswap_fpsave:
     fxsave (%r11)
@@ -133,7 +133,7 @@ gth_ctx_make:
     jz      .Lmake_fpsave
     movl    gth_fp_rfbm(%rip), %eax
     movl    gth_fp_rfbm + 4(%rip), %edx
-    xsaveopt64 (%r11)
+    xsave64 (%r11)
     jmp     .Lmake_done
 .Lmake_fpsave:
     fxsave  (%r11)

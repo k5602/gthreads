@@ -295,8 +295,7 @@ static void *fp_rounding_peer_thread(void *arg)
         (void)one_third;
         gth_thread_yield();
     }
-    fesetround(FE_TONEAREST);
-    return 0;
+    return 0; /* leave FE_DOWNWARD active to verify caller-state restoration */
 }
 
 static void *fp_rounding_marker_thread(void *arg)
